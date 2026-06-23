@@ -56,6 +56,7 @@ pub fn detect_category(ext: &str) -> &'static str {
         "mp3" | "wav" | "flac" | "aac" | "ogg" | "m4a" | "wma" => "audio",
         "mp4" | "mkv" | "avi" | "mov" | "webm" | "flv" | "3gp" => "video",
         "pdf" | "txt" | "md" | "epub" | "docx" | "xlsx" | "pptx" | "json" | "xml" | "html" => "doc",
+        "zip" | "rar" | "7z" | "tar" | "gz" | "zipx" => "archive",
         _ => "other",
     }
 }

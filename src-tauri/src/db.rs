@@ -283,10 +283,13 @@ impl DbManager {
         .fetch_all(&self.pool)
         .await?;
 
-        // 2. 按文件大类分类，统计文件数量与总大小
+        // 2. 按文件大类分类，统计文件数量与总大小 (使用 UNION ALL 将文件夹 count 统一查出)
         let category_distribution = sqlx::query_as::<_, CategoryStats>(
             "SELECT category, COUNT(*) as count, SUM(COALESCE(size_bytes, 0)) as total_size
-             FROM files WHERE is_dir = 0 GROUP BY category;"
+             FROM files WHERE is_dir = 0 GROUP BY category
+             UNION ALL
+             SELECT 'folder' as category, COUNT(*) as count, 0 as total_size
+             FROM files WHERE is_dir = 1;"
         )
         .fetch_all(&self.pool)
         .await?;
