@@ -4337,6 +4337,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "futures-util",
+ "percent-encoding",
  "quick-xml 0.36.2",
  "reqwest 0.12.28",
  "serde",

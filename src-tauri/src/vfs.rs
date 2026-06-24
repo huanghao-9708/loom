@@ -86,16 +86,20 @@ impl LocalSource {
         Self { root_path }
     }
 
-    fn resolve(&self, path: &str) -> PathBuf {
+    fn resolve(&self, path: &str) -> Result<PathBuf, VfsError> {
         let cleaned = path.trim_start_matches('/');
-        self.root_path.join(cleaned)
+        // 彻底封堵 ../ 路径穿越漏洞
+        if cleaned.contains("..") {
+            return Err(VfsError::Io("Path traversal detected".to_string()));
+        }
+        Ok(self.root_path.join(cleaned))
     }
 }
 
 #[async_trait]
 impl VfsSource for LocalSource {
     async fn list_dir(&self, path: &str) -> Result<Vec<VfsEntry>, VfsError> {
-        let full_path = self.resolve(path);
+        let full_path = self.resolve(path)?;
         let mut entries = Vec::new();
 
         if !full_path.exists() {
@@ -146,7 +150,7 @@ impl VfsSource for LocalSource {
     }
 
     async fn read_file(&self, path: &str) -> Result<Vec<u8>, VfsError> {
-        let full_path = self.resolve(path);
+        let full_path = self.resolve(path)?;
         if !full_path.exists() {
             return Err(VfsError::NotFound);
         }
@@ -155,7 +159,7 @@ impl VfsSource for LocalSource {
     }
 
     async fn read_range(&self, path: &str, start: u64, length: u64) -> Result<Vec<u8>, VfsError> {
-        let full_path = self.resolve(path);
+        let full_path = self.resolve(path)?;
         if !full_path.exists() {
             return Err(VfsError::NotFound);
         }
@@ -169,7 +173,7 @@ impl VfsSource for LocalSource {
     }
 
     async fn get_size(&self, path: &str) -> Result<u64, VfsError> {
-        let full_path = self.resolve(path);
+        let full_path = self.resolve(path)?;
         if !full_path.exists() {
             return Err(VfsError::NotFound);
         }
@@ -178,31 +182,33 @@ impl VfsSource for LocalSource {
     }
 
     async fn get_capacity(&self) -> Result<Option<u64>, VfsError> {
-        use sysinfo::Disks;
-        let disks = Disks::new_with_refreshed_list();
-        
-        let mut best_match: Option<u64> = None;
-        let mut max_len = 0;
-        
-        // 跨平台统一将反斜杠转为正斜杠进行匹配比对
         let root_str = self.root_path.to_string_lossy().to_string().replace('\\', "/");
         
-        for disk in disks.list() {
-            let mount_point = disk.mount_point().to_string_lossy().to_string().replace('\\', "/");
-            // 大小写不敏感匹配 (Windows 经常大小写混杂)
-            if root_str.to_lowercase().starts_with(&mount_point.to_lowercase()) {
-                if mount_point.len() > max_len {
-                    max_len = mount_point.len();
-                    best_match = Some(disk.total_space());
+        let best_match = tokio::task::spawn_blocking(move || {
+            use sysinfo::Disks;
+            let disks = Disks::new_with_refreshed_list();
+            let mut best: Option<u64> = None;
+            let mut max_len = 0;
+            
+            for disk in disks.list() {
+                let mount_point = disk.mount_point().to_string_lossy().to_string().replace('\\', "/");
+                if root_str.to_lowercase().starts_with(&mount_point.to_lowercase()) {
+                    if mount_point.len() > max_len {
+                        max_len = mount_point.len();
+                        best = Some(disk.total_space());
+                    }
                 }
             }
-        }
+            best
+        })
+        .await
+        .map_err(|e| VfsError::Io(e.to_string()))?;
         
         Ok(best_match)
     }
 
     async fn delete(&self, path: &str) -> Result<(), VfsError> {
-        let full_path = self.resolve(path);
+        let full_path = self.resolve(path)?;
         if !full_path.exists() {
             return Err(VfsError::NotFound);
         }
@@ -216,7 +222,7 @@ impl VfsSource for LocalSource {
     }
 
     async fn rename(&self, path: &str, new_name: &str) -> Result<(), VfsError> {
-        let full_path = self.resolve(path);
+        let full_path = self.resolve(path)?;
         if !full_path.exists() {
             return Err(VfsError::NotFound);
         }
@@ -227,7 +233,7 @@ impl VfsSource for LocalSource {
     }
 
     async fn mkdir(&self, path: &str) -> Result<(), VfsError> {
-        let full_path = self.resolve(path);
+        let full_path = self.resolve(path)?;
         tokio_fs::create_dir_all(&full_path).await?;
         Ok(())
     }
@@ -318,12 +324,16 @@ impl VfsSource for WebdavSource {
 
         let mut entries = Vec::new();
         // 坚果云请求路径包含 URL 编码，解码出来便于比对
-        let decoded_path_target = percent_decode_str(path)?
+        let decoded_path_target = percent_encoding::percent_decode_str(path)
+            .decode_utf8_lossy()
+            .to_string()
             .trim_end_matches('/')
             .to_lowercase();
 
         for raw in raw_entries {
-            let decoded_href = percent_decode_str(&raw.href)?;
+            let decoded_href = percent_encoding::percent_decode_str(&raw.href)
+                .decode_utf8_lossy()
+                .to_string();
 
             // 提取文件名
             let name = decoded_href
@@ -353,7 +363,7 @@ impl VfsSource for WebdavSource {
             let ext = name
                 .split('.')
                 .last()
-                .filter(|&e| e != &name)
+                .filter(|&e: &&str| e != name.as_str())
                 .map(|e| e.to_string());
             let category = ext
                 .as_ref()
@@ -629,29 +639,4 @@ fn parse_webdav_xml(xml: &str) -> Result<Vec<WebdavRawEntry>, VfsError> {
     Ok(entries)
 }
 
-/// 纯手写百分号 URL 解码器，实现零依赖的健壮 URL 解码
-fn percent_decode_str(s: &str) -> Result<String, VfsError> {
-    let mut bytes = Vec::new();
-    let mut chars = s.as_bytes().iter().peekable();
 
-    while let Some(&b) = chars.next() {
-        if b == b'%' {
-            let h1 = chars
-                .next()
-                .ok_or_else(|| VfsError::XmlParse("Malformed URL percent-encoding".to_string()))?;
-            let h2 = chars
-                .next()
-                .ok_or_else(|| VfsError::XmlParse("Malformed URL percent-encoding".to_string()))?;
-            let hex = format!("{}{}", *h1 as char, *h2 as char);
-            let decoded_byte = u8::from_str_radix(&hex, 16).map_err(|e| {
-                VfsError::XmlParse(format!("Failed to parse hex byte in URL: {}", e))
-            })?;
-            bytes.push(decoded_byte);
-        } else {
-            bytes.push(b);
-        }
-    }
-
-    String::from_utf8(bytes)
-        .map_err(|e| VfsError::XmlParse(format!("URL UTF-8 decoding error: {}", e)))
-}

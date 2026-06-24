@@ -58,6 +58,7 @@ impl DbManager {
                 is_dir      INTEGER NOT NULL,     -- 0 / 1
                 mtime       TEXT,                 -- ISO8601 修改时间
                 scanned_at  TEXT NOT NULL,
+                parent_vpath TEXT NOT NULL DEFAULT '',
                 UNIQUE(source_id, vpath)
             );",
         )
@@ -139,6 +140,16 @@ impl DbManager {
             .await?;
         }
 
+        // 尝试向后兼容地添加 parent_vpath 列（若已存在则忽略报错）
+        let _ = sqlx::query("ALTER TABLE files ADD COLUMN parent_vpath TEXT NOT NULL DEFAULT '';")
+            .execute(&self.pool)
+            .await;
+
+        // 建立 parent_vpath 联合索引以支持真正的 O(1) 父目录查询
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_files_parent ON files(source_id, parent_vpath);")
+            .execute(&self.pool)
+            .await?;
+
         Ok(())
     }
 
@@ -200,31 +211,18 @@ impl DbManager {
         source_id: i32,
         parent_vpath: &str,
     ) -> Result<Vec<FileRecord>, sqlx::Error> {
-        let prefix = if parent_vpath == "/" || parent_vpath.is_empty() {
-            "%".to_string()
+        let target_parent = if parent_vpath.is_empty() || parent_vpath == "/" {
+            "/"
         } else {
-            format!("{}/%", parent_vpath.trim_end_matches('/'))
+            parent_vpath.trim_end_matches('/')
         };
 
-        // 计算父目录的斜杠数，以过滤出直属一级的子项
-        let parent_slash_count = if parent_vpath == "/" || parent_vpath.is_empty() {
-            0
-        } else {
-            parent_vpath.matches('/').count()
-        };
-        let target_slash_count = parent_slash_count + 1;
-
-        // 下推斜杠数量过滤至 SQLite 引擎内核，使用原生字符串处理直接淘汰深层子级
-        // 彻底杜绝全盘上百万数据被加载到 Rust 内存中导致的 OOM 和十几秒的查询卡顿！
+        // 直接走 source_id 和 parent_vpath 联合索引，彻底实现 O(1) 量级的查询，规避全表扫描
         let filtered = sqlx::query_as::<_, FileRecord>(
-            "SELECT * FROM files 
-             WHERE source_id = ? 
-               AND vpath LIKE ? 
-               AND (LENGTH(vpath) - LENGTH(REPLACE(vpath, '/', ''))) = ?;"
+            "SELECT * FROM files WHERE source_id = ? AND parent_vpath = ?;"
         )
         .bind(source_id)
-        .bind(&prefix)
-        .bind(target_slash_count as i64)
+        .bind(target_parent)
         .fetch_all(&self.pool)
         .await?;
 
@@ -240,10 +238,22 @@ impl DbManager {
         let scanned_at = chrono::Utc::now().to_rfc3339();
 
         for r in records {
+            let parent_vpath = if r.vpath == "/" || r.vpath.is_empty() {
+                "".to_string()
+            } else {
+                let trimmed = r.vpath.trim_end_matches('/');
+                if let Some(idx) = trimmed.rfind('/') {
+                    if idx == 0 { "/".to_string() } else { trimmed[..idx].to_string() }
+                } else {
+                    "/".to_string()
+                }
+            };
+
             sqlx::query(
-                "INSERT INTO files (source_id, vpath, name, ext, category, size_bytes, is_dir, mtime, scanned_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                "INSERT INTO files (source_id, vpath, parent_vpath, name, ext, category, size_bytes, is_dir, mtime, scanned_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                  ON CONFLICT(source_id, vpath) DO UPDATE SET
+                    parent_vpath = excluded.parent_vpath,
                     name = excluded.name,
                     ext = excluded.ext,
                     category = excluded.category,
@@ -254,6 +264,7 @@ impl DbManager {
             )
             .bind(r.source_id)
             .bind(r.vpath)
+            .bind(parent_vpath)
             .bind(r.name)
             .bind(r.ext)
             .bind(r.category)

@@ -262,25 +262,25 @@ async fn cmd_file_delete(
     };
     source.delete(&path).await.map_err(|e| e.to_string())?;
 
-    let db_clone = db.inner().clone();
-    let source_info = db.get_source(source_id).await.map_err(|e| e.to_string())?;
-    let is_webdav = source_info.kind == "webdav";
-
     let parent_path = if let Some(idx) = path.trim_end_matches('/').rfind('/') {
-        path[..idx].to_string()
+        if idx == 0 { "/".to_string() } else { path[..idx].to_string() }
     } else {
-        "".to_string()
+        "/".to_string()
     };
     
-    tokio::spawn(async move {
-        let scanner = crate::scanner::Scanner::new(db_clone);
-        if scanner.scan_source(source_id, source, is_webdav).await.is_ok() {
-            let _ = app.emit("vfs-dir-updated", serde_json::json!({
-                "source_id": source_id,
-                "path": parent_path
-            }));
-        }
-    });
+    // 精准外科手术：仅删除被删文件及其下属所有子节点记录，无须全盘扫描
+    let cascade_prefix = format!("{}/%", path.trim_end_matches('/'));
+    let _ = sqlx::query("DELETE FROM files WHERE source_id = ? AND (vpath = ? OR vpath LIKE ?)")
+        .bind(source_id)
+        .bind(&path)
+        .bind(&cascade_prefix)
+        .execute(&db.pool)
+        .await;
+
+    let _ = app.emit("vfs-dir-updated", serde_json::json!({
+        "source_id": source_id,
+        "path": parent_path
+    }));
 
     Ok(())
 }
@@ -300,25 +300,23 @@ async fn cmd_file_rename(
     };
     source.rename(&path, &new_name).await.map_err(|e| e.to_string())?;
 
-    let db_clone = db.inner().clone();
-    let source_info = db.get_source(source_id).await.map_err(|e| e.to_string())?;
-    let is_webdav = source_info.kind == "webdav";
-
     let parent_path = if let Some(idx) = path.trim_end_matches('/').rfind('/') {
-        path[..idx].to_string()
+        if idx == 0 { "/".to_string() } else { path[..idx].to_string() }
     } else {
-        "".to_string()
+        "/".to_string()
     };
     
-    tokio::spawn(async move {
-        let scanner = crate::scanner::Scanner::new(db_clone);
-        if scanner.scan_source(source_id, source, is_webdav).await.is_ok() {
-            let _ = app.emit("vfs-dir-updated", serde_json::json!({
-                "source_id": source_id,
-                "path": parent_path
-            }));
-        }
-    });
+    // 强制清除父目录的局部缓存以触发前端即时懒加载重拉取，杜绝全盘扫描
+    let _ = sqlx::query("DELETE FROM files WHERE source_id = ? AND parent_vpath = ?")
+        .bind(source_id)
+        .bind(&parent_path)
+        .execute(&db.pool)
+        .await;
+
+    let _ = app.emit("vfs-dir-updated", serde_json::json!({
+        "source_id": source_id,
+        "path": parent_path
+    }));
 
     Ok(())
 }
@@ -337,25 +335,23 @@ async fn cmd_file_mkdir(
     };
     source.mkdir(&path).await.map_err(|e| e.to_string())?;
 
-    let db_clone = db.inner().clone();
-    let source_info = db.get_source(source_id).await.map_err(|e| e.to_string())?;
-    let is_webdav = source_info.kind == "webdav";
-
     let parent_path = if let Some(idx) = path.trim_end_matches('/').rfind('/') {
-        path[..idx].to_string()
+        if idx == 0 { "/".to_string() } else { path[..idx].to_string() }
     } else {
-        "".to_string()
+        "/".to_string()
     };
     
-    tokio::spawn(async move {
-        let scanner = crate::scanner::Scanner::new(db_clone);
-        if scanner.scan_source(source_id, source, is_webdav).await.is_ok() {
-            let _ = app.emit("vfs-dir-updated", serde_json::json!({
-                "source_id": source_id,
-                "path": parent_path
-            }));
-        }
-    });
+    // 清除父目录的局部缓存以迫使前端触发即时懒加载，实现毫秒级 UI 刷新反馈
+    let _ = sqlx::query("DELETE FROM files WHERE source_id = ? AND parent_vpath = ?")
+        .bind(source_id)
+        .bind(&parent_path)
+        .execute(&db.pool)
+        .await;
+
+    let _ = app.emit("vfs-dir-updated", serde_json::json!({
+        "source_id": source_id,
+        "path": parent_path
+    }));
 
     Ok(())
 }

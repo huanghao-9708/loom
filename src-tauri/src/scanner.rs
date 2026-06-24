@@ -12,7 +12,6 @@ impl Scanner {
         Self { db }
     }
 
-    /// 触发指定数据源的后台增量文件扫描任务
     pub async fn scan_source(
         &self,
         source_id: i32,
@@ -22,6 +21,10 @@ impl Scanner {
         // 创建用于解耦遍历线程与数据库写入线程的 Channel
         let (tx, mut rx) = mpsc::channel::<Vec<FileInsert>>(100);
         let db_clone = self.db.clone();
+        
+        // 记录本次扫描的启动时间（用于对比清理已删除文件）
+        // 给予 5 秒的安全冗余以防止时钟或执行抖动
+        let scan_start_time = (chrono::Utc::now() - chrono::Duration::seconds(5)).to_rfc3339();
 
         // 1. 开启一个后台 DB 写入任务，采用 Transaction 批量写入
         let db_writer_handle = tokio::spawn(async move {
@@ -56,9 +59,23 @@ impl Scanner {
             return Err(format!("Scanning VFS failed: {}", e));
         }
 
-        // 3. 统计该数据源的已用空间，快速同步写入到 disk_usage 表中
-        let updated_at = chrono::Utc::now().to_rfc3339();
         let pool = &self.db.pool;
+
+        // 3. 执行“幽灵驱散”逻辑：清除硬盘中已被删除但在旧库中残留的文件
+        let deleted_ghosts = sqlx::query("DELETE FROM files WHERE source_id = ? AND scanned_at < ?;")
+            .bind(source_id)
+            .bind(&scan_start_time)
+            .execute(pool)
+            .await;
+            
+        if let Ok(res) = deleted_ghosts {
+            if res.rows_affected() > 0 {
+                println!("[Scanner] Successfully wiped out {} ghost files.", res.rows_affected());
+            }
+        }
+
+        // 4. 统计该数据源的已用空间，快速同步写入到 disk_usage 表中
+        let updated_at = chrono::Utc::now().to_rfc3339();
 
         let _ = sqlx::query(
             "INSERT INTO disk_usage (source_id, total_bytes, used_bytes, free_bytes, item_count, updated_at)
@@ -141,26 +158,30 @@ impl Scanner {
             ));
         }
 
-        // 深度递归子目录
-        for subdir in subdirs {
-            // 对子目录执行递归遍历，深度自增
-            let res = Box::pin(self.recursive_scan(
-                source_id,
-                &subdir,
-                source,
-                is_webdav,
-                current_depth + 1,
-                tx,
-            ))
-            .await;
+        // 深度递归子目录：使用并发流提升扫描吞吐量，限制并发数为 5 以防止爆句柄
+        use futures_util::StreamExt;
+        
+        futures_util::stream::iter(subdirs)
+            .for_each_concurrent(5, |subdir| async move {
+                // 对子目录执行递归遍历，深度自增
+                let res = Box::pin(self.recursive_scan(
+                    source_id,
+                    &subdir,
+                    source,
+                    is_webdav,
+                    current_depth + 1,
+                    tx,
+                ))
+                .await;
 
-            if let Err(e) = res {
-                eprintln!(
-                    "[Scanner Warning] Failed to scan sub-directory '{}': {}",
-                    subdir, e
-                );
-            }
-        }
+                if let Err(e) = res {
+                    eprintln!(
+                        "[Scanner Warning] Failed to scan sub-directory '{}': {}",
+                        subdir, e
+                    );
+                }
+            })
+            .await;
 
         Ok(())
     }

@@ -2,8 +2,14 @@
 import { ref, onMounted, onUnmounted, computed } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { open as openDialog } from '@tauri-apps/plugin-dialog';
+import { open as openDialog, message } from '@tauri-apps/plugin-dialog';
 import { listen } from '@tauri-apps/api/event';
+
+// 统一错误处理弹窗助手
+const showError = async (title: string, err: any) => {
+  console.error(`[${title}]`, err);
+  await message(`${err}`, { title, kind: 'error' });
+};
 
 const appWindow = getCurrentWindow();
 
@@ -129,12 +135,20 @@ const showMkdirModal = ref<boolean>(false);
 const newFolderName = ref<string>("");
 
 const openContextMenu = (e: MouseEvent, file: FileRecord) => {
-  // 禁止在“全部文件”页使用右键操作，因为不知道路径属于哪个盘（或者可以从file.source_id解析，但先禁用最稳妥）
+  // 禁止在“全部文件”页使用右键操作
   if (currentSourceId.value === null) return;
+  
+  let x = e.clientX;
+  let y = e.clientY;
+  
+  // 防边界溢出计算：假设菜单宽度约 160px，高度约 200px
+  if (window.innerWidth - x < 160) x = window.innerWidth - 160;
+  if (window.innerHeight - y < 200) y = window.innerHeight - 200;
+
   contextMenu.value = {
     visible: true,
-    x: e.clientX,
-    y: e.clientY,
+    x,
+    y,
     file,
   };
 };
@@ -143,11 +157,16 @@ const closeContextMenu = () => {
   contextMenu.value.visible = false;
 };
 
+let unlistenVfsUpdate: (() => void) | null = null;
+let globalObserver: IntersectionObserver | null = null;
+
 onMounted(() => {
   window.addEventListener("click", closeContextMenu);
 });
 onUnmounted(() => {
   window.removeEventListener("click", closeContextMenu);
+  if (unlistenVfsUpdate) unlistenVfsUpdate();
+  if (globalObserver) globalObserver.disconnect();
 });
 
 const startRename = () => {
@@ -179,8 +198,7 @@ const confirmRename = async () => {
     // 后端完成后会自动触发重扫，我们这里只需关闭输入框即可
     renamingFileId.value = null;
   } catch (err) {
-    console.error("Rename Error:", err);
-    alert(`重命名失败: ${err}`);
+    await showError("Rename Failed", err);
   }
 };
 
@@ -196,8 +214,7 @@ const deleteFile = async () => {
       path: file.vpath
     });
   } catch (err) {
-    console.error("Delete Error:", err);
-    alert(`删除失败: ${err}`);
+    await showError("Delete Failed", err);
   }
 };
 
@@ -220,8 +237,7 @@ const confirmMkdir = async () => {
     showMkdirModal.value = false;
     newFolderName.value = "";
   } catch (err) {
-    console.error("Mkdir Error:", err);
-    alert(`新建文件夹失败: ${err}`);
+    await showError("Mkdir Failed", err);
   }
 };
 
@@ -402,8 +418,8 @@ const totalFilesSize = computed(() => {
 const loadSources = async () => {
   try {
     sources.value = await invoke<Source[]>("cmd_get_sources");
-  } catch (e) {
-    console.error("Failed to load sources:", e);
+  } catch (err) {
+    await showError("Failed to load sources", err);
   }
 };
 
@@ -411,8 +427,8 @@ const loadSources = async () => {
 const loadBentoStats = async () => {
   try {
     bentoStats.value = await invoke<BentoStats>("cmd_get_bento_stats");
-  } catch (e) {
-    console.error("Failed to load bento stats:", e);
+  } catch (err) {
+    await showError("Failed to load bento stats", err);
   }
 };
 
@@ -456,8 +472,8 @@ const loadDir = async (sourceId: number | null, path: string) => {
         source_name: src ? src.name : ""
       }));
     }
-  } catch (e) {
-    console.error("Failed to load VFS dir:", e);
+  } catch (err) {
+    await showError("Failed to load VFS dir", err);
   } finally {
     isLoading.value = false;
   }
@@ -546,8 +562,8 @@ const addSource = async () => {
     await loadSources();
     await loadBentoStats();
     await loadDir(currentSourceId.value, currentPath.value);
-  } catch (e) {
-    alert("添加数据源失败: " + e);
+  } catch (err) {
+    await showError("Add Source Failed", err);
   }
 };
 
@@ -571,8 +587,8 @@ const confirmDeleteSource = async () => {
     await loadSources();
     await loadBentoStats();
     await loadDir(currentSourceId.value, currentPath.value);
-  } catch (e) {
-    console.error("Failed to delete source:", e);
+  } catch (err) {
+    await showError("Delete Source Failed", err);
   }
 };
 
@@ -594,8 +610,8 @@ const performSearch = async () => {
         source_name: src ? src.name : ""
       };
     });
-  } catch (e) {
-    console.error("Search failed:", e);
+  } catch (err) {
+    await showError("Search Failed", err);
   }
 };
 
@@ -610,7 +626,7 @@ onMounted(async () => {
   await loadDir(null, "/"); // 默认展示合并大平层
 
   // 挂载 Tauri VFS 后台更新事件监听
-  await listen('vfs-dir-updated', async (event: any) => {
+  unlistenVfsUpdate = await listen('vfs-dir-updated', async (event: any) => {
     const { source_id, path } = event.payload;
     if (currentSourceId.value === source_id && currentPath.value === path) {
       await loadDir(source_id, path);
@@ -621,7 +637,7 @@ onMounted(async () => {
   });
 
   // 挂载 IntersectionObserver 实现虚拟滚动
-  const observer = new IntersectionObserver((entries) => {
+  globalObserver = new IntersectionObserver((entries) => {
     if (entries[0].isIntersecting) {
       if (displayLimit.value < files.value.length) {
         // 每次触底多加载 50 条
@@ -632,8 +648,8 @@ onMounted(async () => {
 
   // 延迟绑定 observer 以确保 DOM 渲染完成
   setTimeout(() => {
-    if (observerTarget.value) {
-      observer.observe(observerTarget.value);
+    if (observerTarget.value && globalObserver) {
+      globalObserver.observe(observerTarget.value);
     }
   }, 500);
 });
