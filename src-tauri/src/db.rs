@@ -16,7 +16,7 @@ impl DbManager {
 
         // 使用 sqlite: 前缀构建连接串
         let db_url = format!("sqlite:{}?mode=rwc", db_path.to_string_lossy());
-        
+
         // 创建数据库连接池
         let pool = SqlitePoolOptions::new()
             .max_connections(5)
@@ -25,7 +25,7 @@ impl DbManager {
 
         let manager = Self { pool };
         manager.run_migrations().await?;
-        
+
         Ok(manager)
     }
 
@@ -40,7 +40,7 @@ impl DbManager {
                 config_json TEXT NOT NULL,        -- 加密或序列化的配置 (URL, Token, username 等)
                 status      TEXT NOT NULL,        -- connected | offline | error
                 created_at  TEXT NOT NULL
-            );"
+            );",
         )
         .execute(&self.pool)
         .await?;
@@ -59,7 +59,7 @@ impl DbManager {
                 mtime       TEXT,                 -- ISO8601 修改时间
                 scanned_at  TEXT NOT NULL,
                 UNIQUE(source_id, vpath)
-            );"
+            );",
         )
         .execute(&self.pool)
         .await?;
@@ -73,7 +73,7 @@ impl DbManager {
                 free_bytes  INTEGER,
                 item_count  INTEGER,
                 updated_at  TEXT NOT NULL
-            );"
+            );",
         )
         .execute(&self.pool)
         .await?;
@@ -88,17 +88,16 @@ impl DbManager {
                 data_dir       TEXT NOT NULL,
                 schema_version INTEGER NOT NULL DEFAULT 0,
                 manifest       TEXT NOT NULL
-            );"
+            );",
         )
         .execute(&self.pool)
         .await?;
 
         // 5. 初始化 FTS5 全文搜索虚表与触发器 (如虚表不存在则创建)
-        let fts_check = sqlx::query(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='files_fts';"
-        )
-        .fetch_optional(&self.pool)
-        .await?;
+        let fts_check =
+            sqlx::query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='files_fts';")
+                .fetch_optional(&self.pool)
+                .await?;
 
         if fts_check.is_none() {
             sqlx::query(
@@ -106,16 +105,16 @@ impl DbManager {
                     name, 
                     content='files', 
                     content_rowid='id'
-                );"
+                );",
             )
             .execute(&self.pool)
             .await?;
-            
+
             // 当插入新文件时自动同步到全文检索
             sqlx::query(
                 "CREATE TRIGGER files_ai AFTER INSERT ON files BEGIN
                     INSERT INTO files_fts(rowid, name) VALUES (new.id, new.name);
-                END;"
+                END;",
             )
             .execute(&self.pool)
             .await?;
@@ -148,11 +147,16 @@ impl DbManager {
     // ==========================================
 
     /// 添加新数据源连接
-    pub async fn add_source(&self, kind: &str, name: &str, config_json: &str) -> Result<i32, sqlx::Error> {
+    pub async fn add_source(
+        &self,
+        kind: &str,
+        name: &str,
+        config_json: &str,
+    ) -> Result<i32, sqlx::Error> {
         let created_at = chrono::Utc::now().to_rfc3339();
         let res = sqlx::query(
             "INSERT INTO sources (kind, name, config_json, status, created_at)
-             VALUES (?, ?, ?, 'connected', ?);"
+             VALUES (?, ?, ?, 'connected', ?);",
         )
         .bind(kind)
         .bind(name)
@@ -191,21 +195,16 @@ impl DbManager {
     }
 
     /// 根据父目录的 vpath 获取其直属一级的子文件/子目录记录
-    pub async fn get_files_in_dir(&self, source_id: i32, parent_vpath: &str) -> Result<Vec<FileRecord>, sqlx::Error> {
+    pub async fn get_files_in_dir(
+        &self,
+        source_id: i32,
+        parent_vpath: &str,
+    ) -> Result<Vec<FileRecord>, sqlx::Error> {
         let prefix = if parent_vpath == "/" || parent_vpath.is_empty() {
             "%".to_string()
         } else {
             format!("{}/%", parent_vpath.trim_end_matches('/'))
         };
-
-        // 先拉取前缀匹配的所有记录
-        let records = sqlx::query_as::<_, FileRecord>(
-            "SELECT * FROM files WHERE source_id = ? AND vpath LIKE ?;"
-        )
-        .bind(source_id)
-        .bind(&prefix)
-        .fetch_all(&self.pool)
-        .await?;
 
         // 计算父目录的斜杠数，以过滤出直属一级的子项
         let parent_slash_count = if parent_vpath == "/" || parent_vpath.is_empty() {
@@ -213,11 +212,21 @@ impl DbManager {
         } else {
             parent_vpath.matches('/').count()
         };
+        let target_slash_count = parent_slash_count + 1;
 
-        let filtered = records.into_iter().filter(|r| {
-            let r_slash_count = r.vpath.matches('/').count();
-            r_slash_count == parent_slash_count + 1
-        }).collect();
+        // 下推斜杠数量过滤至 SQLite 引擎内核，使用原生字符串处理直接淘汰深层子级
+        // 彻底杜绝全盘上百万数据被加载到 Rust 内存中导致的 OOM 和十几秒的查询卡顿！
+        let filtered = sqlx::query_as::<_, FileRecord>(
+            "SELECT * FROM files 
+             WHERE source_id = ? 
+               AND vpath LIKE ? 
+               AND (LENGTH(vpath) - LENGTH(REPLACE(vpath, '/', ''))) = ?;"
+        )
+        .bind(source_id)
+        .bind(&prefix)
+        .bind(target_slash_count as i64)
+        .fetch_all(&self.pool)
+        .await?;
 
         Ok(filtered)
     }
@@ -266,7 +275,7 @@ impl DbManager {
         let records = sqlx::query_as::<_, FileRecord>(
             "SELECT f.* FROM files f
              JOIN files_fts fts ON f.id = fts.rowid
-             WHERE files_fts MATCH ?;"
+             WHERE files_fts MATCH ?;",
         )
         .bind(&fts_query)
         .fetch_all(&self.pool)
@@ -278,7 +287,7 @@ impl DbManager {
     pub async fn get_bento_stats(&self) -> Result<BentoStats, sqlx::Error> {
         // 1. 获取所有类别的最近 50 个最新文件变动
         let recent = sqlx::query_as::<_, FileRecord>(
-            "SELECT * FROM files WHERE is_dir = 0 ORDER BY mtime DESC LIMIT 50;"
+            "SELECT * FROM files WHERE is_dir = 0 ORDER BY mtime DESC LIMIT 50;",
         )
         .fetch_all(&self.pool)
         .await?;
@@ -289,7 +298,7 @@ impl DbManager {
              FROM files WHERE is_dir = 0 GROUP BY category
              UNION ALL
              SELECT 'folder' as category, COUNT(*) as count, 0 as total_size
-             FROM files WHERE is_dir = 1;"
+             FROM files WHERE is_dir = 1;",
         )
         .fetch_all(&self.pool)
         .await?;
@@ -301,7 +310,7 @@ impl DbManager {
                     COUNT(f.id) as file_count
              FROM sources s
              LEFT JOIN files f ON s.id = f.source_id AND f.is_dir = 0
-             GROUP BY s.id;"
+             GROUP BY s.id;",
         )
         .fetch_all(&self.pool)
         .await?;
@@ -366,6 +375,8 @@ pub struct SourceSizeStats {
     pub source_name: String,
     pub total_size: i64,
     pub file_count: i32,
+    #[sqlx(default)]
+    pub physical_capacity: Option<u64>,
 }
 
 #[derive(serde::Serialize)]
@@ -374,4 +385,3 @@ pub struct BentoStats {
     pub category_distribution: Vec<CategoryStats>,
     pub source_statistics: Vec<SourceSizeStats>,
 }
-

@@ -1,7 +1,7 @@
+use crate::db::{DbManager, FileInsert};
+use crate::vfs::{VfsError, VfsSource};
 use std::sync::Arc;
 use tokio::sync::mpsc;
-use crate::vfs::{VfsSource, VfsError, VfsEntry};
-use crate::db::{DbManager, FileInsert};
 
 pub struct Scanner {
     db: DbManager,
@@ -43,7 +43,9 @@ impl Scanner {
         });
 
         // 2. 在当前线程递归遍历文件源
-        let scan_res = self.recursive_scan(source_id, "/", source.as_ref(), is_webdav, 0, &tx).await;
+        let scan_res = self
+            .recursive_scan(source_id, "/", source.as_ref(), is_webdav, 0, &tx)
+            .await;
 
         // 关闭通道发送端，使写入端退出循环并提交
         drop(tx);
@@ -57,7 +59,7 @@ impl Scanner {
         // 3. 统计该数据源的已用空间，快速同步写入到 disk_usage 表中
         let updated_at = chrono::Utc::now().to_rfc3339();
         let pool = &self.db.pool;
-        
+
         let _ = sqlx::query(
             "INSERT INTO disk_usage (source_id, total_bytes, used_bytes, free_bytes, item_count, updated_at)
              VALUES (?, 0, ?, 0, ?, ?)
@@ -98,7 +100,10 @@ impl Scanner {
                 if matches!(e, VfsError::Unauthorized) {
                     return Err(e);
                 }
-                eprintln!("[Scanner Warning] Skip listing path '{}' due to: {}", current_path, e);
+                eprintln!(
+                    "[Scanner Warning] Skip listing path '{}' due to: {}",
+                    current_path, e
+                );
                 return Ok(());
             }
         };
@@ -112,7 +117,7 @@ impl Scanner {
 
         for entry in entries {
             let relative_vpath = entry.vpath.clone();
-            
+
             insert_batch.push(FileInsert {
                 source_id,
                 vpath: relative_vpath.clone(),
@@ -131,23 +136,29 @@ impl Scanner {
 
         // 发送当前目录层级的批次文件记录到数据库异步写入任务中
         if tx.send(insert_batch).await.is_err() {
-            return Err(VfsError::Unknown("Database writer channel is broken".to_string()));
+            return Err(VfsError::Unknown(
+                "Database writer channel is broken".to_string(),
+            ));
         }
 
         // 深度递归子目录
         for subdir in subdirs {
             // 对子目录执行递归遍历，深度自增
             let res = Box::pin(self.recursive_scan(
-                source_id, 
-                &subdir, 
-                source, 
-                is_webdav, 
-                current_depth + 1, 
-                tx
-            )).await;
+                source_id,
+                &subdir,
+                source,
+                is_webdav,
+                current_depth + 1,
+                tx,
+            ))
+            .await;
 
             if let Err(e) = res {
-                eprintln!("[Scanner Warning] Failed to scan sub-directory '{}': {}", subdir, e);
+                eprintln!(
+                    "[Scanner Warning] Failed to scan sub-directory '{}': {}",
+                    subdir, e
+                );
             }
         }
 

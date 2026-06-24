@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from "vue";
+import { ref, onMounted, onUnmounted, computed } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { open as openDialog } from '@tauri-apps/plugin-dialog';
+import { listen } from '@tauri-apps/api/event';
 
 const appWindow = getCurrentWindow();
 
@@ -55,6 +57,7 @@ interface SourceSizeStats {
   source_name: string;
   total_size: number;
   file_count: number;
+  physical_capacity: number | null;
 }
 
 interface BentoStats {
@@ -73,6 +76,15 @@ const files = ref<FileRecord[]>([]);
 const searchQuery = ref<string>("");
 const isSearching = ref<boolean>(false);
 
+// 异步分页与懒加载状态
+const isLoading = ref<boolean>(false);
+const displayLimit = ref<number>(50);
+const observerTarget = ref<HTMLElement | null>(null);
+
+const displayFiles = computed(() => {
+  return files.value.slice(0, displayLimit.value);
+});
+
 // 后端全局看板与统计数据
 const bentoStats = ref<BentoStats>({
   recent: [],
@@ -83,6 +95,9 @@ const bentoStats = ref<BentoStats>({
 // 新建数据源/设置弹窗状态
 const showAddModal = ref<boolean>(false);
 const showSettingsModal = ref<boolean>(false);
+const showDeleteConfirmModal = ref<boolean>(false);
+const sourceToDelete = ref<number | null>(null);
+
 const newSourceKind = ref<string>("local");
 const newSourceName = ref<string>("");
 const localPath = ref<string>("");
@@ -98,8 +113,132 @@ const greetName = ref("Loom User");
 const selectedFile = ref<FileRecord | null>(null); // 右边栏预览的文件
 
 // ==========================================
+// 右键菜单与基础操作状态
+// ==========================================
+const contextMenu = ref({
+  visible: false,
+  x: 0,
+  y: 0,
+  file: null as FileRecord | null,
+});
+
+const renamingFileId = ref<number | null>(null);
+const renameInput = ref<string>("");
+
+const showMkdirModal = ref<boolean>(false);
+const newFolderName = ref<string>("");
+
+const openContextMenu = (e: MouseEvent, file: FileRecord) => {
+  // 禁止在“全部文件”页使用右键操作，因为不知道路径属于哪个盘（或者可以从file.source_id解析，但先禁用最稳妥）
+  if (currentSourceId.value === null) return;
+  contextMenu.value = {
+    visible: true,
+    x: e.clientX,
+    y: e.clientY,
+    file,
+  };
+};
+
+const closeContextMenu = () => {
+  contextMenu.value.visible = false;
+};
+
+onMounted(() => {
+  window.addEventListener("click", closeContextMenu);
+});
+onUnmounted(() => {
+  window.removeEventListener("click", closeContextMenu);
+});
+
+const startRename = () => {
+  if (!contextMenu.value.file) return;
+  renamingFileId.value = contextMenu.value.file.id;
+  renameInput.value = contextMenu.value.file.name;
+};
+
+const confirmRename = async () => {
+  if (!renamingFileId.value || !renameInput.value.trim()) {
+    renamingFileId.value = null;
+    return;
+  }
+  
+  const file = files.value.find(f => f.id === renamingFileId.value);
+  if (!file) return;
+  
+  if (file.name === renameInput.value) {
+    renamingFileId.value = null;
+    return;
+  }
+
+  try {
+    await invoke("cmd_file_rename", {
+      sourceId: file.source_id,
+      path: file.vpath,
+      newName: renameInput.value.trim()
+    });
+    // 后端完成后会自动触发重扫，我们这里只需关闭输入框即可
+    renamingFileId.value = null;
+  } catch (err) {
+    console.error("Rename Error:", err);
+    alert(`重命名失败: ${err}`);
+  }
+};
+
+const deleteFile = async () => {
+  if (!contextMenu.value.file) return;
+  const file = contextMenu.value.file;
+  
+  if (!confirm(`确定要永久删除 [${file.name}] 吗？\n删除后无法恢复！`)) return;
+
+  try {
+    await invoke("cmd_file_delete", {
+      sourceId: file.source_id,
+      path: file.vpath
+    });
+  } catch (err) {
+    console.error("Delete Error:", err);
+    alert(`删除失败: ${err}`);
+  }
+};
+
+const confirmMkdir = async () => {
+  if (!newFolderName.value.trim() || !currentSourceId.value) return;
+  
+  let targetPath = currentPath.value.endsWith('/') 
+    ? currentPath.value + newFolderName.value.trim() 
+    : currentPath.value + '/' + newFolderName.value.trim();
+    
+  if (currentPath.value === "/") {
+      targetPath = "/" + newFolderName.value.trim();
+  }
+
+  try {
+    await invoke("cmd_file_mkdir", {
+      sourceId: currentSourceId.value,
+      path: targetPath
+    });
+    showMkdirModal.value = false;
+    newFolderName.value = "";
+  } catch (err) {
+    console.error("Mkdir Error:", err);
+    alert(`新建文件夹失败: ${err}`);
+  }
+};
+
+// ==========================================
 // 辅助与转换方法
 // ==========================================
+// 生成跨平台兼容的流媒体预览 URL
+const getPreviewUrl = (sourceId: number, vpath: string) => {
+  const isWindows = navigator.userAgent.includes("Windows");
+  // WebView2 on Windows requires http://<scheme>.localhost format for custom protocols
+  const baseUrl = isWindows ? "http://loom.localhost" : "loom://localhost";
+  
+  // URL Encode each segment of the path to avoid issues with special characters and spaces
+  const encodedPath = vpath.split('/').map(segment => encodeURIComponent(segment)).join('/');
+  
+  return `${baseUrl}/preview/${sourceId}${encodedPath}`;
+};
 // 格式化文件大小
 const formatBytes = (bytes: number | null | undefined) => {
   if (bytes === null || bytes === undefined) return "—";
@@ -253,12 +392,7 @@ const totalFilesSize = computed(() => {
   return totalStorageUsed.value;
 });
 
-// 当前选择的数据源名称
-const currentSourceName = computed(() => {
-  if (currentSourceId.value === null) return "全部文件";
-  const src = sources.value.find(s => s.id === currentSourceId.value);
-  return src ? src.name : "未知数据源";
-});
+
 
 // ==========================================
 // 业务接口核心方法
@@ -294,6 +428,8 @@ const selectSource = async (sourceId: number | null) => {
 // 加载目录文件 (包含融合大平层处理)
 const loadDir = async (sourceId: number | null, path: string) => {
   try {
+    isLoading.value = true;
+    displayLimit.value = 50; // 重置分页
     currentPath.value = path;
     if (sourceId === null) {
       // 融合所有数据源根目录文件
@@ -322,6 +458,8 @@ const loadDir = async (sourceId: number | null, path: string) => {
     }
   } catch (e) {
     console.error("Failed to load VFS dir:", e);
+  } finally {
+    isLoading.value = false;
   }
 };
 
@@ -353,6 +491,22 @@ const handleRowDblClick = async (file: FileRecord) => {
   if (file.is_dir) {
     currentSourceId.value = file.source_id;
     await loadDir(file.source_id, file.vpath);
+  }
+};
+
+// 选择本地文件夹目录
+const selectLocalDirectory = async () => {
+  try {
+    const selected = await openDialog({
+      directory: true,
+      multiple: false,
+      title: '选择作为存储源的文件夹'
+    });
+    if (selected !== null) {
+      localPath.value = selected as string;
+    }
+  } catch (e) {
+    console.error("Failed to open dialog:", e);
   }
 };
 
@@ -398,14 +552,22 @@ const addSource = async () => {
 };
 
 // 移除数据源
-const deleteSourceInSettings = async (id: number) => {
-  if (!confirm("确认移除该数据源及其全部本地文件缓存索引？")) return;
+const deleteSourceInSettings = (id: number) => {
+  sourceToDelete.value = id;
+  showDeleteConfirmModal.value = true;
+};
+
+const confirmDeleteSource = async () => {
+  if (sourceToDelete.value === null) return;
+  const id = sourceToDelete.value;
   try {
     await invoke("cmd_remove_source", { id });
     if (currentSourceId.value === id) {
       currentSourceId.value = null;
       files.value = [];
     }
+    showDeleteConfirmModal.value = false;
+    sourceToDelete.value = null;
     await loadSources();
     await loadBentoStats();
     await loadDir(currentSourceId.value, currentPath.value);
@@ -446,6 +608,34 @@ onMounted(async () => {
   await loadSources();
   await loadBentoStats();
   await loadDir(null, "/"); // 默认展示合并大平层
+
+  // 挂载 Tauri VFS 后台更新事件监听
+  await listen('vfs-dir-updated', async (event: any) => {
+    const { source_id, path } = event.payload;
+    if (currentSourceId.value === source_id && currentPath.value === path) {
+      await loadDir(source_id, path);
+    } else if (currentSourceId.value === null && path === "/") {
+      await loadDir(null, "/");
+    }
+    await loadBentoStats();
+  });
+
+  // 挂载 IntersectionObserver 实现虚拟滚动
+  const observer = new IntersectionObserver((entries) => {
+    if (entries[0].isIntersecting) {
+      if (displayLimit.value < files.value.length) {
+        // 每次触底多加载 50 条
+        displayLimit.value += 50;
+      }
+    }
+  }, { root: null, rootMargin: '200px' });
+
+  // 延迟绑定 observer 以确保 DOM 渲染完成
+  setTimeout(() => {
+    if (observerTarget.value) {
+      observer.observe(observerTarget.value);
+    }
+  }, 500);
 });
 </script>
 
@@ -520,6 +710,7 @@ onMounted(async () => {
             </li>
           </ul>
         </div>
+
 
         <!-- 插件面板 -->
         <div class="space-y-1">
@@ -739,6 +930,17 @@ onMounted(async () => {
             <circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>
           </svg>
         </button>
+
+        <!-- 添加存储 主按钮 -->
+        <button 
+          @click="showAddModal = true"
+          class="ml-1.5 px-3 py-1.5 bg-text-primary hover:bg-[#333333] text-bg-base rounded-lg text-xs font-semibold cursor-pointer transition-all shadow-sm flex items-center gap-1.5 active:scale-95 border border-transparent"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          <span>接入存储</span>
+        </button>
       </div>
 
       <!-- 筛选栏 -->
@@ -764,6 +966,21 @@ onMounted(async () => {
         </div>
         <div class="flex items-center gap-3 text-gray-400">
           <span class="text-[11px]">共 {{ files.length }} 项</span>
+          
+          <!-- 新建文件夹 -->
+          <button 
+            v-if="currentSourceId !== null"
+            @click="showMkdirModal = true"
+            title="新建文件夹"
+            class="hover:text-text-primary transition-colors cursor-pointer mr-1"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+              <line x1="12" y1="11" x2="12" y2="17"></line>
+              <line x1="9" y1="14" x2="15" y2="14"></line>
+            </svg>
+          </button>
+
           <!-- Refresh -->
           <button 
             @click="loadDir(currentSourceId, currentPath)" 
@@ -789,12 +1006,13 @@ onMounted(async () => {
               <th class="py-2.5 font-normal w-28 text-right pr-2.5"></th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-border-light">
+          <tbody class="divide-y divide-border-light relative">
             <tr 
-              v-for="file in files" 
+              v-for="file in displayFiles" 
               :key="file.id"
               @click="handleRowClick(file)"
               @dblclick="handleRowDblClick(file)"
+              @contextmenu.prevent="openContextMenu($event, file)"
               class="group hover:bg-item-hover/40 cursor-pointer select-none transition-colors border-b border-border-light/50"
               :class="selectedFile?.id === file.id ? 'bg-item-selected/45' : ''"
             >
@@ -815,7 +1033,19 @@ onMounted(async () => {
                   <span v-else-if="getFileIcon(file) === 'figma'">🎨</span>
                   <span v-else>📎</span>
                 </span>
-                <span class="truncate font-medium text-[12.5px] max-w-[260px] tracking-wide">{{ file.name }}</span>
+                
+                <!-- Inline Rename Input vs Display Span -->
+                <input 
+                  v-if="renamingFileId === file.id"
+                  v-model="renameInput"
+                  @blur="confirmRename"
+                  @keyup.enter="confirmRename"
+                  @keyup.esc="renamingFileId = null"
+                  autoFocus
+                  class="bg-bg-surface border border-accent rounded px-1.5 py-0.5 outline-none text-[12.5px] w-48 text-text-primary"
+                  @click.stop
+                />
+                <span v-else class="truncate font-medium text-[12.5px] max-w-[260px] tracking-wide" :title="file.name">{{ file.name }}</span>
               </td>
               <!-- 2. 大小 -->
               <td class="py-2.5 text-gray-500 font-mono text-[11px] tabular-nums">
@@ -841,11 +1071,25 @@ onMounted(async () => {
               </td>
             </tr>
 
-            <tr v-if="files.length === 0">
+            <tr v-if="files.length === 0 && !isLoading">
               <td colspan="6" class="py-16 text-center text-xs italic text-gray-400">
-                {{ isSearching ? '未在全文检索中找到匹配项。' : '当前目录无文件或正在后台索引...' }}
+                {{ isSearching ? '未在全文检索中找到匹配项。' : '当前目录无文件。' }}
               </td>
             </tr>
+            <!-- 加载中状态 -->
+            <tr v-if="isLoading">
+              <td colspan="6" class="py-16 text-center text-xs text-gray-400">
+                <div class="flex items-center justify-center gap-2">
+                  <svg class="animate-spin w-4 h-4 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
+                    <path d="M12 2a10 10 0 0 1 10 10" stroke-opacity="0.75"></path>
+                  </svg>
+                  <span>正在从后端获取文件...</span>
+                </div>
+              </td>
+            </tr>
+            <!-- 触底观察锚点 -->
+            <tr ref="observerTarget" class="h-2 opacity-0 pointer-events-none w-full"><td colspan="6"></td></tr>
           </tbody>
         </table>
       </div>
@@ -866,7 +1110,7 @@ onMounted(async () => {
           <!-- 图片预览 -->
           <div v-if="selectedFile.category === 'image'" class="bg-bg-base border border-border-light rounded-lg p-2.5 flex items-center justify-center overflow-hidden aspect-square">
             <img 
-              :src="`loom://preview/${selectedFile.source_id}${selectedFile.vpath}`"
+              :src="getPreviewUrl(selectedFile.source_id, selectedFile.vpath)"
               class="max-w-full max-h-full object-contain rounded" 
             />
           </div>
@@ -876,14 +1120,14 @@ onMounted(async () => {
             <video 
               controls 
               class="w-full h-full"
-              :src="`loom://preview/${selectedFile.source_id}${selectedFile.vpath}`"
+              :src="getPreviewUrl(selectedFile.source_id, selectedFile.vpath)"
             ></video>
           </div>
 
           <!-- PDF 预览 -->
           <div v-else-if="selectedFile.ext === 'pdf'" class="bg-bg-base border border-border-light rounded-lg min-h-[300px] relative overflow-hidden">
             <iframe 
-              :src="`loom://preview/${selectedFile.source_id}${selectedFile.vpath}`"
+              :src="getPreviewUrl(selectedFile.source_id, selectedFile.vpath)"
               class="w-full h-full border-none absolute inset-0"
             ></iframe>
           </div>
@@ -894,7 +1138,7 @@ onMounted(async () => {
             <audio 
               controls 
               class="w-full"
-              :src="`loom://preview/${selectedFile.source_id}${selectedFile.vpath}`"
+              :src="getPreviewUrl(selectedFile.source_id, selectedFile.vpath)"
             ></audio>
           </div>
 
@@ -974,21 +1218,47 @@ onMounted(async () => {
                   </span>
                   <span class="font-medium group-hover:text-accent transition-colors">{{ stat.source_name }}</span>
                 </div>
-                <span class="text-gray-400 font-mono text-[11px] tabular-nums">
-                  {{ formatBytes(stat.total_size) }} / 100 GB
-                </span>
+                <div class="flex items-center gap-2">
+                  <span class="text-gray-500 font-mono text-[11px] tabular-nums">
+                    <template v-if="stat.physical_capacity">
+                      {{ formatBytes(stat.total_size) }} / {{ formatBytes(stat.physical_capacity) }}
+                    </template>
+                    <template v-else>
+                      已索引 {{ formatBytes(stat.total_size) }}
+                    </template>
+                  </span>
+                  <!-- 删除按钮 (仅悬停时显示) -->
+                  <button 
+                    @click.stop="deleteSourceInSettings(stat.source_id)" 
+                    class="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-all cursor-pointer"
+                    title="删除磁盘"
+                  >
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                  </button>
+                </div>
               </div>
               
               <!-- 进度条 -->
-              <div class="flex items-center gap-2.5">
+              <div class="flex items-center gap-2.5" :title="stat.physical_capacity ? '物理磁盘真实容量比' : '当前全应用内索引容量占比'">
                 <div class="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                   <div 
                     class="h-full bg-text-primary rounded-full transition-all" 
-                    :style="{ width: Math.min(100, (stat.total_size / (100 * 1024 * 1024 * 1024)) * 100) + '%' }"
+                    :style="{ 
+                      width: stat.physical_capacity 
+                        ? Math.min(100, (stat.total_size / stat.physical_capacity) * 100) + '%'
+                        : (totalStorageUsed > 0 ? (stat.total_size / totalStorageUsed * 100) + '%' : '0%')
+                    }"
                   ></div>
                 </div>
-                <span class="text-[10px] text-gray-400 font-mono w-7 text-right tabular-nums">
-                  {{ Math.round(Math.min(100, (stat.total_size / (100 * 1024 * 1024 * 1024)) * 100)) }}%
+                <span class="text-[10px] text-gray-400 font-mono w-8 text-right tabular-nums">
+                  <template v-if="stat.physical_capacity">
+                    {{ Math.round(Math.min(100, (stat.total_size / stat.physical_capacity) * 100)) }}%
+                  </template>
+                  <template v-else>
+                    {{ totalStorageUsed > 0 ? Math.round((stat.total_size / totalStorageUsed) * 100) : 0 }}%
+                  </template>
                 </span>
               </div>
             </div>
@@ -1102,12 +1372,21 @@ onMounted(async () => {
         <!-- 本地路径 -->
         <div v-if="newSourceKind === 'local'" class="space-y-1.5 text-xs">
           <label class="text-[9px] font-bold text-gray-400 uppercase">绝对路径 (Absolute Path)</label>
-          <input 
-            v-model="localPath"
-            type="text" 
-            placeholder="例如：D:/MyMusic 或 /Users/me/Documents"
-            class="w-full bg-bg-base border border-border-light rounded-lg px-3 py-2 focus:outline-none focus:border-gray-400 text-xs text-text-primary"
-          />
+          <div class="flex items-center gap-2">
+            <input 
+              v-model="localPath"
+              type="text" 
+              placeholder="例如：D:/MyMusic 或 /Users/me/Documents"
+              class="flex-1 bg-bg-base border border-border-light rounded-lg px-3 py-2 focus:outline-none focus:border-gray-400 text-xs text-text-primary"
+            />
+            <button 
+              @click="selectLocalDirectory" 
+              class="px-3 py-2 bg-bg-base border border-border-light hover:bg-item-hover rounded-lg font-medium text-text-primary cursor-pointer transition-colors shadow-[0_1px_2px_rgba(0,0,0,0.01)] flex-shrink-0"
+              title="浏览文件夹"
+            >
+              浏览...
+            </button>
+          </div>
         </div>
 
         <!-- WebDAV 配置 -->
@@ -1228,7 +1507,105 @@ onMounted(async () => {
       </div>
     </div>
 
-  </div>
+    <!-- ========================================== -->
+    <!-- 极简工业模态框: 危险操作确认 -->
+    <!-- ========================================== -->
+    <div v-if="showDeleteConfirmModal" class="fixed inset-0 bg-text-primary/30 backdrop-blur-[1px] z-50 flex items-center justify-center">
+      <div class="bg-bg-surface border border-border-light w-[400px] p-6.5 rounded-lg space-y-5 shadow-2xl">
+        <div class="flex items-center gap-2.5 border-b border-border-light pb-2">
+          <svg class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          <div class="text-[12px] font-bold text-gray-800 tracking-wider">
+            彻底卸载该存储源？
+          </div>
+        </div>
+        
+        <div class="space-y-3 text-xs text-gray-500 leading-relaxed">
+          <p>此操作将清空其在本应用内的所有高速索引缓存，<span class="text-text-primary font-semibold">且该操作无法恢复。</span></p>
+          <div class="bg-gray-50 border border-gray-100 rounded p-2.5 text-[10px] text-gray-400">
+            安全提示：作为 BYOS 系统，Loom 绝不会修改或删除您的任何物理磁盘文件或云端源数据。
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-3 pt-2">
+          <button 
+            @click="showDeleteConfirmModal = false"
+            class="px-4 py-2 border border-border-light hover:bg-item-hover text-gray-600 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+          >
+            取消
+          </button>
+          <button 
+            @click="confirmDeleteSource"
+            class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-semibold cursor-pointer transition-colors shadow-sm"
+          >
+            彻底卸载
+          </button>
+        </div>
+      </div>
+    </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- 7. 右键上下文菜单 (Context Menu) -->
+    <!-- ========================================== -->
+    <div 
+      v-show="contextMenu.visible" 
+      class="fixed bg-bg-surface border border-border-light rounded-lg shadow-lg py-1.5 w-40 z-50 text-[11.5px] font-medium"
+      :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
+    >
+      <button 
+        @click="startRename" 
+        class="w-full text-left px-4 py-1.5 hover:bg-item-hover text-text-primary cursor-pointer transition-colors"
+      >
+        重命名
+      </button>
+      <div class="h-px bg-border-light my-1"></div>
+      <button 
+        @click="deleteFile" 
+        class="w-full text-left px-4 py-1.5 hover:bg-red-50 text-red-500 cursor-pointer transition-colors"
+      >
+        永久删除
+      </button>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- 8. 新建文件夹模态框 -->
+    <!-- ========================================== -->
+    <div v-if="showMkdirModal" class="fixed inset-0 bg-text-primary/30 backdrop-blur-[1px] z-50 flex items-center justify-center" @click.self="showMkdirModal = false">
+      <div class="bg-bg-surface border border-border-light w-[340px] p-5 rounded-lg space-y-4 shadow-2xl">
+        <div class="text-[11px] font-bold text-gray-400 tracking-wider uppercase border-b border-border-light pb-1.5">
+          新建文件夹
+        </div>
+        <div class="space-y-1.5 text-xs">
+          <label class="text-[9px] font-bold text-gray-400 uppercase">文件夹名称</label>
+          <input 
+            v-model="newFolderName"
+            @keyup.enter="confirmMkdir"
+            @keyup.esc="showMkdirModal = false"
+            autoFocus
+            type="text" 
+            placeholder="未命名文件夹"
+            class="w-full bg-bg-base border border-border-light rounded-lg px-3 py-2 focus:outline-none focus:border-accent text-xs text-text-primary transition-all"
+          />
+        </div>
+        <div class="border-t border-border-light pt-3 flex justify-end gap-2 text-xs font-semibold">
+          <button 
+            @click="showMkdirModal = false"
+            class="px-4 py-1.5 border border-border-light rounded-lg hover:bg-item-hover cursor-pointer text-gray-500"
+          >
+            取消
+          </button>
+          <button 
+            @click="confirmMkdir"
+            class="px-4 py-1.5 bg-text-primary hover:bg-accent text-bg-surface rounded-lg cursor-pointer transition-colors"
+          >
+            创建
+          </button>
+        </div>
+      </div>
+    </div>
+
   </div>
   </div>
 </template>

@@ -29,4 +29,6 @@ futures-util = "0.3"
 quick-xml = { version = "0.36", features = ["serialize"] }
 chrono = { version = "0.4", features = ["serde"] }
 async-trait = "0.1"
+tauri-plugin-dialog = "2"
+sysinfo = "0.38.4"
 
