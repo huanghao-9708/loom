@@ -1,0 +1,14 @@
+{
+  "id": "com.loom.hello",
+  "name": "Hello World 测试靶机",
+  "version": "1.0.0",
+  "entry": "index.html",
+  "schemaVersion": 1,
+  "permissions": {
+    "vfs": ["read"],
+    "db": true,
+    "net": [],
+    "ui": ["sidebar"]
+  },
+  "migrations": []
+}

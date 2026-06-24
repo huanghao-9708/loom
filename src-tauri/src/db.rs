@@ -150,6 +150,20 @@ impl DbManager {
             .execute(&self.pool)
             .await?;
 
+        // 4. 插件注册表（用于在主库中记录已经挂载的第三方沙盒信息）
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS plugins (
+                id             TEXT PRIMARY KEY,
+                name           TEXT NOT NULL,
+                version        TEXT NOT NULL,
+                enabled        INTEGER NOT NULL,
+                schema_version INTEGER NOT NULL DEFAULT 0,
+                manifest       TEXT NOT NULL
+            );"
+        )
+        .execute(&self.pool)
+        .await?;
+
         Ok(())
     }
 

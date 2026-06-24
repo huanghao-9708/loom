@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open as openDialog, message } from '@tauri-apps/plugin-dialog';
 import { listen } from '@tauri-apps/api/event';
+import PluginHost from './components/PluginHost.vue';
 
 // 统一错误处理弹窗助手
 const showError = async (title: string, err: any) => {
@@ -81,6 +82,16 @@ const currentPath = ref<string>("/");
 const files = ref<FileRecord[]>([]);
 const searchQuery = ref<string>("");
 const isSearching = ref<boolean>(false);
+
+// 插件沙箱状态
+const activePluginId = ref<string | null>(null);
+const activePluginEntry = ref<string>("");
+
+const openPlugin = (id: string, entry: string) => {
+  activePluginId.value = id;
+  activePluginEntry.value = entry;
+  currentSourceId.value = null; // 清除左侧文件树选中的视觉高亮
+};
 
 // 异步分页与懒加载状态
 const isLoading = ref<boolean>(false);
@@ -432,8 +443,9 @@ const loadBentoStats = async () => {
   }
 };
 
-// 选择特定源进行浏览
+// 源与目录切换逻辑
 const selectSource = async (sourceId: number | null) => {
+  activePluginId.value = null;
   currentSourceId.value = sourceId;
   selectedFile.value = null;
   searchQuery.value = "";
@@ -686,10 +698,10 @@ onMounted(async () => {
             <li 
               @click="selectSource(null)"
               class="relative cursor-pointer flex items-center justify-between rounded-lg transition-all"
-              :class="currentSourceId === null && !selectedFile ? 'bg-white text-text-primary font-semibold shadow-[0_2px_6px_rgba(0,0,0,0.03)] pl-4' : 'text-gray-600 hover:bg-item-hover pl-3'"
+              :class="(currentSourceId === null && !selectedFile && !activePluginId) ? 'bg-white text-text-primary font-semibold shadow-[0_2px_6px_rgba(0,0,0,0.03)] pl-4' : 'text-gray-600 hover:bg-item-hover pl-3'"
             >
               <!-- 激活指示条 -->
-              <span v-if="currentSourceId === null && !selectedFile" class="absolute left-1 top-2.5 bottom-2.5 w-1 bg-accent rounded-full"></span>
+              <span v-if="currentSourceId === null && !selectedFile && !activePluginId" class="absolute left-1 top-2.5 bottom-2.5 w-1 bg-accent rounded-full"></span>
               
               <div class="flex items-center gap-2.5 py-2">
                 <!-- Box/All Files Icon -->
@@ -764,6 +776,19 @@ onMounted(async () => {
                 <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
               </svg>
               <span>插件市场</span>
+            </li>
+            <li 
+              @click="openPlugin('com.loom.hello', '/plugins/com.loom.hello/index.html')"
+              class="relative px-3 py-2 cursor-pointer flex items-center justify-between rounded-lg transition-all"
+              :class="activePluginId === 'com.loom.hello' ? 'bg-white text-text-primary font-semibold shadow-[0_2px_6px_rgba(0,0,0,0.03)] pl-4' : 'text-gray-600 hover:bg-item-hover pl-3'"
+            >
+              <span v-if="activePluginId === 'com.loom.hello'" class="absolute left-1 top-2.5 bottom-2.5 w-1 bg-accent rounded-full"></span>
+              <div class="flex items-center gap-2.5">
+                <svg class="w-4 h-4 text-purple-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
+                </svg>
+                <span>Hello Sandbox</span>
+              </div>
             </li>
           </ul>
         </div>
@@ -868,7 +893,11 @@ onMounted(async () => {
     <!-- ========================================== -->
     <!-- 2. 中间主面板区 (Main Panel) -->
     <!-- ========================================== -->
-    <main class="flex-1 flex flex-col min-w-0 bg-bg-surface p-6.5 pr-2.5 pt-3">
+    <main v-if="activePluginId" class="flex-1 flex flex-col min-w-0 bg-white relative">
+      <div data-tauri-drag-region class="absolute top-0 left-0 right-0 h-4 z-20 cursor-default"></div>
+      <PluginHost :pluginId="activePluginId" :entryUrl="activePluginEntry" />
+    </main>
+    <main v-else class="flex-1 flex flex-col min-w-0 bg-bg-surface p-6.5 pr-2.5 pt-3">
       
       <!-- Window Drag Region for Main Panel -->
       <div data-tauri-drag-region class="h-4 flex-shrink-0 cursor-default w-full"></div>

@@ -1,9 +1,11 @@
 pub mod db;
 pub mod scanner;
 pub mod vfs;
+pub mod plugin_mgr;
 
 use crate::db::{BentoStats, DbManager, FileRecord, SourceRecord};
 use crate::vfs::VfsSource;
+use crate::plugin_mgr::PluginManager;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tauri::{Emitter, Manager, State};
@@ -375,6 +377,40 @@ fn parse_range_header(range_str: &str) -> Option<(u64, u64)> {
     Some((start, end))
 }
 
+// ==========================================
+// 插件隔离沙箱通信网关
+// ==========================================
+
+#[tauri::command]
+async fn cmd_plugin_db_execute(
+    plugin_mgr: State<'_, PluginManager>,
+    plugin_id: String,
+    sql: String,
+) -> Result<u64, String> {
+    let pool = plugin_mgr.get_plugin_pool(&plugin_id).await?;
+    let result = sqlx::query(&sql)
+        .execute(&pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(result.rows_affected())
+}
+
+#[tauri::command]
+async fn cmd_plugin_vfs_list(
+    vfs_manager: State<'_, VfsManager>,
+    plugin_id: String,
+    source_id: i32,
+    path: String,
+) -> Result<Vec<crate::vfs::VfsEntry>, String> {
+    // 【未来扩展点】根据插件 Manifest，在此拦截不允许的 source_id 和 path
+    println!("[Security Gateway] Plugin '{}' requests VFS list at {}/{}", plugin_id, source_id, path);
+    // 此处复用原有的 VFS 能力下发
+    let sources = vfs_manager.sources.read().await;
+    let source = sources.get(&source_id).ok_or("Source not mounted")?.clone();
+    drop(sources);
+    source.list_dir(&path).await.map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let vfs_manager = VfsManager::new();
@@ -410,6 +446,7 @@ pub fn run() {
             // 挂载 Tauri 全局状态托管
             app.manage(db_manager);
             app.manage(vfs_manager);
+            app.manage(PluginManager::new(app_data_dir.clone()));
 
             Ok(())
         })
@@ -562,6 +599,8 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            cmd_plugin_db_execute,
+            cmd_plugin_vfs_list,
             cmd_add_source,
             cmd_get_sources,
             cmd_remove_source,
