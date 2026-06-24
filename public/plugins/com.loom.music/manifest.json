@@ -1,0 +1,12 @@
+{
+  "id": "com.loom.music",
+  "name": "音乐播放器",
+  "version": "1.0.0",
+  "description": "Lumo - 本地优先的跨平台音乐库",
+  "entry": "index.html",
+  "schemaVersion": 1,
+  "permissions": {
+    "vfs": ["read"],
+    "db": true
+  }
+}

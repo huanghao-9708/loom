@@ -83,14 +83,76 @@ const files = ref<FileRecord[]>([]);
 const searchQuery = ref<string>("");
 const isSearching = ref<boolean>(false);
 
-// 插件沙箱状态
+// ==========================================
+// 多标签页状态 (Multi-Tab)
+// ==========================================
+type TabType = 'home' | 'files' | 'plugin';
+interface Tab {
+  id: string;          
+  type: TabType;
+  title: string;
+  pluginId?: string;   
+  pluginEntry?: string;
+  sourceId?: number | null; 
+}
+
+const tabs = ref<Tab[]>([
+  { id: 'tab-home', type: 'home', title: '首页' },
+  { id: 'tab-files', type: 'files', title: '全部文件', sourceId: null }
+]);
+const activeTabId = ref<string>('tab-files');
+
+const activeTab = computed(() => tabs.value.find(t => t.id === activeTabId.value));
+
+const setActiveTab = (id: string) => {
+  activeTabId.value = id;
+  const tab = tabs.value.find(t => t.id === id);
+  if (tab) {
+    if (tab.type === 'plugin') {
+      activePluginId.value = tab.pluginId || null;
+      activePluginEntry.value = tab.pluginEntry || "";
+      currentSourceId.value = null;
+    } else if (tab.type === 'files') {
+      activePluginId.value = null;
+      currentSourceId.value = tab.sourceId === undefined ? null : tab.sourceId;
+    } else if (tab.type === 'home') {
+      activePluginId.value = null;
+      currentSourceId.value = null;
+    }
+  }
+};
+
+const closeTab = (id: string, e?: Event) => {
+  if (e) e.stopPropagation();
+  const index = tabs.value.findIndex(t => t.id === id);
+  if (index === -1) return;
+  tabs.value.splice(index, 1);
+  if (activeTabId.value === id) {
+    if (tabs.value.length > 0) {
+      setActiveTab(tabs.value[Math.max(0, index - 1)].id);
+    } else {
+      activeTabId.value = '';
+    }
+  }
+};
+
+// 插件沙箱状态 (保留用于兼容原有逻辑)
 const activePluginId = ref<string | null>(null);
 const activePluginEntry = ref<string>("");
 
-const openPlugin = (id: string, entry: string) => {
-  activePluginId.value = id;
-  activePluginEntry.value = entry;
-  currentSourceId.value = null; // 清除左侧文件树选中的视觉高亮
+const openPlugin = (id: string, entry: string, title: string = '插件') => {
+  const tabId = `tab-plugin-${id}`;
+  const existingTab = tabs.value.find(t => t.id === tabId);
+  if (!existingTab) {
+    tabs.value.push({
+      id: tabId,
+      type: 'plugin',
+      title: title,
+      pluginId: id,
+      pluginEntry: entry
+    });
+  }
+  setActiveTab(tabId);
 };
 
 // 异步分页与懒加载状态
@@ -445,12 +507,33 @@ const loadBentoStats = async () => {
 
 // 源与目录切换逻辑
 const selectSource = async (sourceId: number | null) => {
-  activePluginId.value = null;
-  currentSourceId.value = sourceId;
+  const tabId = sourceId === null ? 'tab-files' : `tab-source-${sourceId}`;
+  
+  // 如果 Tab 不存在，则新增（针对于点击某个盘符）
+  const existingTab = tabs.value.find(t => t.id === tabId);
+  if (!existingTab) {
+    const src = sources.value.find(s => s.id === sourceId);
+    tabs.value.push({
+      id: tabId,
+      type: 'files',
+      title: src ? src.name : '全部文件',
+      sourceId: sourceId
+    });
+  }
+  
+  setActiveTab(tabId);
+  
+  // 仅针对文件列表刷新的逻辑
   selectedFile.value = null;
   searchQuery.value = "";
-  isSearching.value = false;
-  await loadDir(sourceId, "/");
+  try {
+    isLoading.value = true;
+    await loadDir(sourceId, "/");
+  } catch (err) {
+    await showError("Source select failed", err);
+  } finally {
+    isLoading.value = false;
+  }
 };
 
 // 加载目录文件 (包含融合大平层处理)
@@ -744,14 +827,18 @@ onMounted(async () => {
         <div class="space-y-1">
           <div class="text-[9px] font-semibold text-gray-400 tracking-wider uppercase px-3 mb-1.5">插件</div>
           <ul class="space-y-[3px] text-xs font-medium">
-            <li class="px-3 py-2 text-gray-600 hover:bg-item-hover cursor-pointer flex items-center justify-between rounded-lg transition-colors">
+            <li 
+              @click="openPlugin('com.loom.music', '/plugins/com.loom.music/index.html')"
+              class="relative px-3 py-2 cursor-pointer flex items-center justify-between rounded-lg transition-all"
+              :class="activePluginId === 'com.loom.music' ? 'bg-white text-text-primary font-semibold shadow-[0_2px_6px_rgba(0,0,0,0.03)] pl-4' : 'text-gray-600 hover:bg-item-hover pl-3'"
+            >
+              <span v-if="activePluginId === 'com.loom.music'" class="absolute left-1 top-2.5 bottom-2.5 w-1 bg-accent rounded-full"></span>
               <div class="flex items-center gap-2.5">
-                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <svg class="w-4 h-4 text-pink-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
                 </svg>
                 <span>音乐播放器</span>
               </div>
-              <span class="h-1 w-1 rounded-full bg-gray-400"></span>
             </li>
             <li class="px-3 py-2 text-gray-600 hover:bg-item-hover cursor-pointer flex items-center justify-between rounded-lg transition-colors">
               <div class="flex items-center gap-2.5">
@@ -821,23 +908,35 @@ onMounted(async () => {
       <!-- 顶部 Tab 选项卡栏 (同时作为拖拽区) -->
       <div data-tauri-drag-region class="h-11 border-b border-border-light bg-bg-sidebar flex items-end justify-between pr-3 select-none relative">
         <div data-tauri-drag-region class="flex items-center h-full pt-1.5 pl-3 gap-1">
-          
-          <!-- Tab 1: 首页 (未激活) -->
-          <div class="flex items-center gap-1.5 px-3.5 py-1.5 text-xs text-gray-500 hover:bg-item-hover active:scale-98 rounded-t-lg cursor-pointer transition-all font-medium">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <!-- Dynamic Tabs -->
+          <div 
+            v-for="tab in tabs" 
+            :key="tab.id"
+            @click="setActiveTab(tab.id)"
+            @mousedown.middle="closeTab(tab.id, $event)"
+            class="group flex items-center gap-1.5 px-3.5 py-1.5 text-xs rounded-t-lg cursor-pointer transition-all font-medium max-w-[200px]"
+            :class="activeTabId === tab.id ? 'text-text-primary bg-bg-base border-t border-x border-border-light relative translate-y-[1px] font-semibold' : 'text-gray-500 hover:bg-item-hover active:scale-98'"
+          >
+            <!-- Tab Icon -->
+            <svg v-if="tab.type === 'home'" class="w-3.5 h-3.5 flex-shrink-0" :class="activeTabId === tab.id ? 'text-accent' : ''" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
               <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
               <polyline points="9 22 9 12 15 12 15 22"></polyline>
             </svg>
-            <span>首页</span>
-          </div>
-
-          <!-- Tab 2: 全部文件 (已激活) -->
-          <div class="flex items-center gap-1.5 px-4 py-1.5 text-xs text-text-primary bg-bg-base border-t border-x border-border-light rounded-t-lg font-semibold relative translate-y-[1px]">
-            <svg class="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <svg v-else-if="tab.type === 'files'" class="w-3.5 h-3.5 flex-shrink-0" :class="activeTabId === tab.id ? 'text-accent' : ''" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
               <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
             </svg>
-            <span>全部文件</span>
-            <button class="w-3.5 h-3.5 rounded-full hover:bg-item-hover flex items-center justify-center text-gray-400 hover:text-text-primary transition-colors ml-1 cursor-pointer">
+            <svg v-else-if="tab.type === 'plugin'" class="w-3.5 h-3.5 flex-shrink-0" :class="activeTabId === tab.id ? 'text-purple-500' : ''" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
+            </svg>
+            
+            <span class="truncate">{{ tab.title }}</span>
+            
+            <!-- Close Button -->
+            <button 
+              @click.stop="closeTab(tab.id, $event)"
+              class="w-3.5 h-3.5 flex-shrink-0 rounded-full flex items-center justify-center transition-colors ml-0.5"
+              :class="activeTabId === tab.id ? 'text-gray-400 hover:bg-item-hover hover:text-text-primary' : 'opacity-0 group-hover:opacity-100 text-gray-400 hover:bg-gray-200 hover:text-text-primary'"
+            >
               <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                 <line x1="18" y1="6" x2="6" y2="18"></line>
                 <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -893,11 +992,17 @@ onMounted(async () => {
     <!-- ========================================== -->
     <!-- 2. 中间主面板区 (Main Panel) -->
     <!-- ========================================== -->
-    <main v-if="activePluginId" class="flex-1 flex flex-col min-w-0 bg-white relative">
-      <div data-tauri-drag-region class="absolute top-0 left-0 right-0 h-4 z-20 cursor-default"></div>
-      <PluginHost :pluginId="activePluginId" :entryUrl="activePluginEntry" />
-    </main>
-    <main v-else class="flex-1 flex flex-col min-w-0 bg-bg-surface p-6.5 pr-2.5 pt-3">
+    
+    <!-- Plugin Tabs Rendering (驻留模式) -->
+    <template v-for="tab in tabs" :key="'plugin-container-'+tab.id">
+      <main v-show="activeTabId === tab.id && tab.type === 'plugin'" class="flex-1 flex flex-col min-w-0 bg-white relative">
+        <div data-tauri-drag-region class="absolute top-0 left-0 right-0 h-4 z-20 cursor-default"></div>
+        <PluginHost v-if="tab.type === 'plugin' && tab.pluginId" :pluginId="tab.pluginId" :entryUrl="tab.pluginEntry!" />
+      </main>
+    </template>
+
+    <!-- Native Files/Home View -->
+    <main v-show="activeTab?.type === 'files' || activeTab?.type === 'home'" class="flex-1 flex flex-col min-w-0 bg-bg-surface p-6.5 pr-2.5 pt-3">
       
       <!-- Window Drag Region for Main Panel -->
       <div data-tauri-drag-region class="h-4 flex-shrink-0 cursor-default w-full"></div>
@@ -1143,7 +1248,7 @@ onMounted(async () => {
     <!-- ========================================== -->
     <!-- 3. 右侧信息看板 (Right Sidebar) -->
     <!-- ========================================== -->
-    <aside class="w-80 border-l border-border-light bg-bg-base p-4.5 flex flex-col min-h-0 select-none overflow-y-auto no-scrollbar">
+    <aside v-show="activeTab?.type === 'files' || activeTab?.type === 'home'" class="w-80 border-l border-border-light bg-bg-base p-4.5 flex flex-col min-h-0 select-none overflow-y-auto no-scrollbar">
       
       <!-- 预览模式：如果单选了文件，显示该文件的预览 -->
       <div v-if="selectedFile" class="flex-1 flex flex-col justify-between h-full bg-bg-surface border border-border-light rounded-lg p-5 shadow-[0_4px_16px_rgba(0,0,0,0.03)]">

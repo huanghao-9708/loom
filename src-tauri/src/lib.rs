@@ -396,6 +396,64 @@ async fn cmd_plugin_db_execute(
 }
 
 #[tauri::command]
+async fn cmd_plugin_db_query(
+    plugin_mgr: State<'_, PluginManager>,
+    plugin_id: String,
+    sql: String,
+    params: Vec<serde_json::Value>,
+) -> Result<Vec<serde_json::Map<String, serde_json::Value>>, String> {
+    use sqlx::{Column, Row};
+    let pool = plugin_mgr.get_plugin_pool(&plugin_id).await?;
+    
+    let mut q = sqlx::query(&sql);
+    for p in params {
+        match p {
+            serde_json::Value::String(s) => q = q.bind(s),
+            serde_json::Value::Number(n) => {
+                if let Some(i) = n.as_i64() {
+                    q = q.bind(i);
+                } else if let Some(f) = n.as_f64() {
+                    q = q.bind(f);
+                }
+            }
+            serde_json::Value::Bool(b) => q = q.bind(b),
+            serde_json::Value::Null => q = q.bind(None::<i64>),
+            _ => q = q.bind(p.to_string()),
+        }
+    }
+
+    let rows = q.fetch_all(&pool).await.map_err(|e| e.to_string())?;
+    let mut result = Vec::new();
+    
+    for row in rows {
+        let mut map = serde_json::Map::new();
+        for col in row.columns() {
+            let col_name = col.name().to_string();
+            // try to extract as integer first, then real, then string
+            let val = if let Ok(v) = row.try_get::<i64, _>(col.ordinal()) {
+                serde_json::Value::Number(v.into())
+            } else if let Ok(v) = row.try_get::<f64, _>(col.ordinal()) {
+                if let Some(num) = serde_json::Number::from_f64(v) {
+                    serde_json::Value::Number(num)
+                } else {
+                    serde_json::Value::Null
+                }
+            } else if let Ok(v) = row.try_get::<String, _>(col.ordinal()) {
+                serde_json::Value::String(v)
+            } else if let Ok(v) = row.try_get::<bool, _>(col.ordinal()) {
+                serde_json::Value::Bool(v)
+            } else {
+                serde_json::Value::Null
+            };
+            map.insert(col_name, val);
+        }
+        result.push(map);
+    }
+    
+    Ok(result)
+}
+
+#[tauri::command]
 async fn cmd_plugin_vfs_list(
     vfs_manager: State<'_, VfsManager>,
     plugin_id: String,
@@ -600,6 +658,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             cmd_plugin_db_execute,
+            cmd_plugin_db_query,
             cmd_plugin_vfs_list,
             cmd_add_source,
             cmd_get_sources,

@@ -50,24 +50,19 @@
   // 构建全局的 loom SDK 命名空间
   global.loom = {
     db: {
-      /**
-       * 在当前插件专属的 data.db 中执行 SQL
-       * @param {string} sql 
-       * @returns {Promise<number>} 受影响的行数
-       */
       execute: async (sql) => {
         return await rpcCall('db.execute', { sql });
+      },
+      query: async (sql, params = []) => {
+        return await rpcCall('db.query', { sql, params });
       }
     },
     vfs: {
-      /**
-       * 列出宿主受控挂载的源目录
-       * @param {number} sourceId 源 ID
-       * @param {string} path 虚拟路径
-       * @returns {Promise<Array>} 文件列表
-       */
       list: async (sourceId, path) => {
         return await rpcCall('vfs.list', { sourceId, path });
+      },
+      getSources: async () => {
+        return await rpcCall('vfs.getSources');
       }
     },
     // 通知宿主：沙箱已经初始化完毕，可以撤去 Loading 遮罩了

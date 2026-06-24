@@ -54,12 +54,22 @@ const handleMessage = async (event: MessageEvent) => {
           sql: payload.sql,
         });
         break;
+      case 'db.query':
+        result = await invoke('cmd_plugin_db_query', {
+          pluginId: props.pluginId,
+          sql: payload.sql,
+          params: payload.params || [],
+        });
+        break;
       case 'vfs.list':
         result = await invoke('cmd_plugin_vfs_list', {
           pluginId: props.pluginId,
           sourceId: payload.sourceId,
           path: payload.path,
         });
+        break;
+      case 'vfs.getSources':
+        result = await invoke('cmd_get_sources');
         break;
       case 'sandbox.ready':
         // 插件已完成 SDK 初始化，可以摘除遮罩
