@@ -47,9 +47,8 @@ async function getOrInsertArtist(name) {
     }
     
     // Insert
-    await window.loomContext.db.execute("INSERT INTO artists (name, normalized_name, kind) VALUES (?, ?, 'person')", [name, normalized]);
-    const res = await window.loomContext.db.query("SELECT last_insert_rowid() as id");
-    return res[0].id;
+    const res = await window.loomContext.db.execute("INSERT INTO artists (name, normalized_name, kind) VALUES (?, ?, 'person')", [name, normalized]);
+    return res.lastInsertId;
 }
 
 async function getOrInsertAlbum(title, artistId, coverArtworkId) {
@@ -61,12 +60,11 @@ async function getOrInsertAlbum(title, artistId, coverArtworkId) {
         return existing[0].id;
     }
     
-    await window.loomContext.db.execute(
+    const res = await window.loomContext.db.execute(
         "INSERT INTO albums (title, normalized_title, album_artist_id, cover_artwork_id) VALUES (?, ?, ?, ?)", 
         [title, normalized, artistId, coverArtworkId]
     );
-    const res = await window.loomContext.db.query("SELECT last_insert_rowid() as id");
-    return res[0].id;
+    return res.lastInsertId;
 }
 
 async function getOrInsertGenre(name) {
@@ -78,9 +76,8 @@ async function getOrInsertGenre(name) {
         return existing[0].id;
     }
     
-    await window.loomContext.db.execute("INSERT INTO genres (name, normalized_name) VALUES (?, ?)", [name, normalized]);
-    const res = await window.loomContext.db.query("SELECT last_insert_rowid() as id");
-    return res[0].id;
+    const res = await window.loomContext.db.execute("INSERT INTO genres (name, normalized_name) VALUES (?, ?)", [name, normalized]);
+    return res.lastInsertId;
 }
 
 async function processFile(sourceId, file) {
@@ -121,12 +118,11 @@ async function processFile(sourceId, file) {
             await window.loomContext.fs.write(cachePath, base64Data);
             
             // Insert into artwork table (media_file_id will be updated later)
-            await window.loomContext.db.execute(
+            const artRes = await window.loomContext.db.execute(
                 "INSERT INTO artwork (cache_path, mime_type) VALUES (?, ?)", 
                 [cachePath, tags.picture.format || 'image/jpeg']
             );
-            const artRes = await window.loomContext.db.query("SELECT last_insert_rowid() as id");
-            coverArtworkId = artRes[0].id;
+            coverArtworkId = artRes.lastInsertId;
         }
     }
 
@@ -138,13 +134,11 @@ async function processFile(sourceId, file) {
     
     // 3. Track
     const normalizedTitle = title.toLowerCase().trim();
-    await window.loomContext.db.execute(`
+    const trackRes = await window.loomContext.db.execute(`
         INSERT INTO tracks (title, normalized_title, album_id, track_no, year)
         VALUES (?, ?, ?, ?, ?)
     `, [title, normalizedTitle, albumId, trackNo, year]);
-    
-    const trackRes = await window.loomContext.db.query("SELECT last_insert_rowid() as id");
-    const trackId = trackRes[0].id;
+    const trackId = trackRes.lastInsertId;
 
     // 4. Track Artist Mapping
     await window.loomContext.db.execute(
@@ -164,13 +158,11 @@ async function processFile(sourceId, file) {
     }
 
     // 6. Media File
-    await window.loomContext.db.execute(`
+    const mediaRes = await window.loomContext.db.execute(`
         INSERT INTO media_files (source_id, track_id, relative_path, normalized_path, file_name, file_ext, file_size)
         VALUES (?, ?, ?, ?, ?, ?, ?)
     `, [sourceId, trackId, file.vpath, file.vpath, file.name, file.ext, file.size_bytes || 0]);
-
-    const mediaRes = await window.loomContext.db.query("SELECT last_insert_rowid() as id");
-    const mediaFileId = mediaRes[0].id;
+    const mediaFileId = mediaRes.lastInsertId;
 
     // Update artwork with media_file_id
     if (coverArtworkId) {

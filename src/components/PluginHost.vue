@@ -52,6 +52,7 @@ const handleMessage = async (event: MessageEvent) => {
         result = await invoke('cmd_plugin_db_execute', {
           pluginId: props.pluginId,
           sql: payload.sql,
+          params: payload.params || [],
         });
         break;
       case 'db.query':

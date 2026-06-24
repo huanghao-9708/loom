@@ -82,6 +82,15 @@ impl PluginManager {
             .await
             .map_err(|e| format!("Failed to connect plugin DB: {}", e))?;
 
+        // 尝试自动读取 manifest 并执行迁移
+        if let Ok(manifest_data) = tokio::fs::read_to_string(plugin_dir.join("manifest.json")).await {
+            if let Ok(manifest) = serde_json::from_str::<PluginManifest>(&manifest_data) {
+                if let Err(e) = Self::migrate_pool(&pool, plugin_id, &plugin_dir, &manifest).await {
+                    println!("[PluginManager] Warning: Auto-migration failed for '{}': {}", plugin_id, e);
+                }
+            }
+        }
+
         map.insert(plugin_id.to_string(), pool.clone());
         println!("[PluginManager] Initialized exclusive database pool for '{}'", plugin_id);
 
@@ -100,11 +109,16 @@ impl PluginManager {
     /// 在受控的沙箱 data.db 内执行属于该插件自身的 schema migration
     pub async fn migrate_plugin(&self, plugin_id: &str, manifest: &PluginManifest) -> Result<(), String> {
         let pool = self.get_plugin_pool(plugin_id).await?;
+        let plugin_dir = self.base_dir.join("plugins").join(plugin_id);
+        Self::migrate_pool(&pool, plugin_id, &plugin_dir, manifest).await
+    }
+
+    async fn migrate_pool(pool: &SqlitePool, plugin_id: &str, plugin_dir: &std::path::Path, manifest: &PluginManifest) -> Result<(), String> {
         let target_version = manifest.schema_version;
 
         // 获取当前库内的 user_version
         let current_version: i32 = sqlx::query_scalar("PRAGMA user_version;")
-            .fetch_one(&pool)
+            .fetch_one(pool)
             .await
             .map_err(|e| format!("Failed to read PRAGMA user_version: {}", e))?;
 
@@ -125,8 +139,6 @@ impl PluginManager {
         let migrations = migrations.unwrap();
 
         // 计算需要执行哪些迁移脚本。假设 current_version 是已执行的脚本数量
-        let plugin_dir = self.base_dir.join("plugins").join(plugin_id);
-        
         let start_index = current_version as usize;
         for i in start_index..migrations.len() {
             let sql_path = plugin_dir.join(&migrations[i]);
@@ -150,7 +162,7 @@ impl PluginManager {
             // 升级版本号
             let next_version = (i + 1) as i32;
             sqlx::query(&format!("PRAGMA user_version = {};", next_version))
-                .execute(&pool)
+                .execute(pool)
                 .await
                 .map_err(|e| format!("Failed to update PRAGMA user_version: {}", e))?;
         }

@@ -50,8 +50,8 @@
   // 构建全局的 loom SDK 命名空间
   global.loom = {
     db: {
-      execute: async (sql) => {
-        return await rpcCall('db.execute', { sql });
+      execute: async (sql, params = []) => {
+        return await rpcCall('db.execute', { sql, params });
       },
       query: async (sql, params = []) => {
         return await rpcCall('db.query', { sql, params });

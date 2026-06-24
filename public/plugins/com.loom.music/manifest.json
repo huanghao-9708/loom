@@ -4,10 +4,10 @@
   "version": "1.0.0",
   "description": "Lumo - 本地优先的跨平台音乐库",
   "entry": "index.html",
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "permissions": {
     "vfs": ["read"],
     "db": true
   },
-  "migrations": ["migrations/001.sql"]
+  "migrations": ["migrations/001.sql", "migrations/002.sql"]
 }

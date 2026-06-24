@@ -291,6 +291,11 @@ impl WebdavSource {
 impl VfsSource for WebdavSource {
     async fn list_dir(&self, path: &str) -> Result<Vec<VfsEntry>, VfsError> {
         let request_url = self.build_url(path)?;
+        let request_path_decoded = percent_encoding::percent_decode_str(request_url.path())
+            .decode_utf8_lossy()
+            .to_string()
+            .trim_end_matches('/')
+            .to_lowercase();
 
         // 发送 WebDAV PROPFIND 请求
         let response = self
@@ -323,12 +328,6 @@ impl VfsSource for WebdavSource {
         let raw_entries = parse_webdav_xml(&body)?;
 
         let mut entries = Vec::new();
-        // 坚果云请求路径包含 URL 编码，解码出来便于比对
-        let decoded_path_target = percent_encoding::percent_decode_str(path)
-            .decode_utf8_lossy()
-            .to_string()
-            .trim_end_matches('/')
-            .to_lowercase();
 
         for raw in raw_entries {
             let decoded_href = percent_encoding::percent_decode_str(&raw.href)
@@ -349,14 +348,7 @@ impl VfsSource for WebdavSource {
 
             // 过滤掉查询目标目录自身
             let cleaned_href = decoded_href.trim_end_matches('/').to_lowercase();
-            // 在坚果云中，href 可能会带前缀 "/dav/"，需要比对尾部是否与目标重合
-            if cleaned_href.ends_with(&decoded_path_target)
-                && (cleaned_href.len() == decoded_path_target.len()
-                    || cleaned_href
-                        .chars()
-                        .nth(cleaned_href.len() - decoded_path_target.len() - 1)
-                        == Some('/'))
-            {
+            if cleaned_href == request_path_decoded {
                 continue;
             }
 

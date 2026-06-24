@@ -386,13 +386,33 @@ async fn cmd_plugin_db_execute(
     plugin_mgr: State<'_, PluginManager>,
     plugin_id: String,
     sql: String,
-) -> Result<u64, String> {
+    params: Vec<serde_json::Value>,
+) -> Result<serde_json::Value, String> {
     let pool = plugin_mgr.get_plugin_pool(&plugin_id).await?;
-    let result = sqlx::query(&sql)
+    let mut q = sqlx::query(&sql);
+    for p in params {
+        match p {
+            serde_json::Value::String(s) => q = q.bind(s),
+            serde_json::Value::Number(n) => {
+                if let Some(i) = n.as_i64() {
+                    q = q.bind(i);
+                } else if let Some(f) = n.as_f64() {
+                    q = q.bind(f);
+                }
+            }
+            serde_json::Value::Bool(b) => q = q.bind(b),
+            serde_json::Value::Null => q = q.bind(None::<i64>),
+            _ => q = q.bind(p.to_string()),
+        }
+    }
+    let result = q
         .execute(&pool)
         .await
         .map_err(|e| e.to_string())?;
-    Ok(result.rows_affected())
+    Ok(serde_json::json!({
+        "rowsAffected": result.rows_affected(),
+        "lastInsertId": result.last_insert_rowid()
+    }))
 }
 
 #[tauri::command]
@@ -534,6 +554,16 @@ pub fn run() {
         // 注册 loom://preview/ 统一安全分片预览协议，支持 Range 头以支持边下边播
         // 注册 loom://plugin_data/ 安全插件私有目录访问协议
         .register_uri_scheme_protocol("loom", |app_handle, request| {
+            if request.method() == tauri::http::Method::OPTIONS {
+                return tauri::http::Response::builder()
+                    .status(tauri::http::StatusCode::NO_CONTENT)
+                    .header("Access-Control-Allow-Origin", "*")
+                    .header("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
+                    .header("Access-Control-Allow-Headers", "Range, Content-Type, If-Modified-Since, If-None-Match")
+                    .body(Vec::new())
+                    .unwrap();
+            }
+
             let uri_path = request.uri().path();
             
             // ==========================================
