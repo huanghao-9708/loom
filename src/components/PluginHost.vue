@@ -71,6 +71,13 @@ const handleMessage = async (event: MessageEvent) => {
       case 'vfs.getSources':
         result = await invoke('cmd_get_sources');
         break;
+      case 'fs.write':
+        result = await invoke('cmd_plugin_fs_write', {
+          pluginId: props.pluginId,
+          path: payload.path,
+          base64Data: payload.base64Data,
+        });
+        break;
       case 'sandbox.ready':
         // 插件已完成 SDK 初始化，可以摘除遮罩
         isLoading.value = false;

@@ -42,6 +42,10 @@ impl PluginManager {
         }
     }
 
+    pub fn get_plugin_dir(&self, plugin_id: &str) -> PathBuf {
+        self.base_dir.join("plugins").join(plugin_id)
+    }
+
     /// 获取或创建指定插件的独立 SqlitePool。
     /// 第一次调用时会在 `plugins/<plugin_id>/data.db` 创建全新库文件。
     pub async fn get_plugin_pool(&self, plugin_id: &str) -> Result<SqlitePool, String> {

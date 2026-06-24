@@ -65,6 +65,11 @@
         return await rpcCall('vfs.getSources');
       }
     },
+    fs: {
+      write: async (path, base64Data) => {
+        return await rpcCall('fs.write', { path, base64Data });
+      }
+    },
     // 通知宿主：沙箱已经初始化完毕，可以撤去 Loading 遮罩了
     ready: () => {
       rpcCall('sandbox.ready');

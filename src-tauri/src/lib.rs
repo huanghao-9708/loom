@@ -469,6 +469,29 @@ async fn cmd_plugin_vfs_list(
     source.list_dir(&path).await.map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+async fn cmd_plugin_fs_write(
+    plugin_mgr: State<'_, PluginManager>,
+    plugin_id: String,
+    path: String,
+    base64_data: String,
+) -> Result<String, String> {
+    use base64::Engine;
+    let plugin_dir = plugin_mgr.get_plugin_dir(&plugin_id);
+    let target_path = plugin_dir.join(&path);
+    
+    if let Some(parent) = target_path.parent() {
+        tokio::fs::create_dir_all(parent).await.map_err(|e| e.to_string())?;
+    }
+    
+    let engine = base64::engine::general_purpose::STANDARD;
+    let decoded = engine.decode(&base64_data).map_err(|e| format!("Base64 decode failed: {}", e))?;
+    
+    tokio::fs::write(&target_path, decoded).await.map_err(|e| e.to_string())?;
+    
+    Ok(format!("plugin_data/{}/{}", plugin_id, path))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let vfs_manager = VfsManager::new();
@@ -509,8 +532,59 @@ pub fn run() {
             Ok(())
         })
         // 注册 loom://preview/ 统一安全分片预览协议，支持 Range 头以支持边下边播
+        // 注册 loom://plugin_data/ 安全插件私有目录访问协议
         .register_uri_scheme_protocol("loom", |app_handle, request| {
             let uri_path = request.uri().path();
+            
+            // ==========================================
+            // 路由：/plugin_data/
+            // ==========================================
+            if let Some(tail) = uri_path.strip_prefix("/plugin_data/") {
+                let parts: Vec<&str> = tail.splitn(2, '/').collect();
+                if parts.len() < 2 {
+                    let err_msg = "Malformed plugin_data path".to_string();
+                    return tauri::http::Response::builder()
+                        .status(tauri::http::StatusCode::BAD_REQUEST)
+                        .body(err_msg.into_bytes())
+                        .unwrap();
+                }
+                let plugin_id = parts[0];
+                let file_path = percent_encoding::percent_decode_str(parts[1]).decode_utf8_lossy();
+                let plugin_mgr = app_handle.app_handle().state::<PluginManager>();
+                let plugin_dir = plugin_mgr.get_plugin_dir(plugin_id);
+                let target_path = plugin_dir.join(file_path.as_ref());
+                
+                let read_res = std::fs::read(&target_path).map_err(|e| e.to_string());
+                return match read_res {
+                    Ok(bytes) => {
+                        let mut response_builder = tauri::http::Response::builder();
+                        let ext = file_path.split('.').last().unwrap_or("").to_lowercase();
+                        let mime_type = match ext.as_str() {
+                            "jpg" | "jpeg" => "image/jpeg",
+                            "png" => "image/png",
+                            "gif" => "image/gif",
+                            "webp" => "image/webp",
+                            _ => "application/octet-stream",
+                        };
+                        response_builder.header("content-type", mime_type)
+                            .header("access-control-allow-origin", "*")
+                            .header("content-length", bytes.len().to_string())
+                            .status(tauri::http::StatusCode::OK)
+                            .body(bytes)
+                            .unwrap()
+                    }
+                    Err(e) => {
+                         tauri::http::Response::builder()
+                            .status(tauri::http::StatusCode::NOT_FOUND)
+                            .body(e.into_bytes())
+                            .unwrap()
+                    }
+                };
+            }
+            
+            // ==========================================
+            // 路由：/preview/
+            // ==========================================
             let tail = if let Some(t) = uri_path.strip_prefix("/preview/") {
                 t
             } else {
@@ -660,6 +734,7 @@ pub fn run() {
             cmd_plugin_db_execute,
             cmd_plugin_db_query,
             cmd_plugin_vfs_list,
+            cmd_plugin_fs_write,
             cmd_add_source,
             cmd_get_sources,
             cmd_remove_source,

@@ -8,5 +8,6 @@
   "permissions": {
     "vfs": ["read"],
     "db": true
-  }
+  },
+  "migrations": ["migrations/001.sql"]
 }
