@@ -7,12 +7,10 @@ window.AppConfig = {
           <!-- Top Area: Main content + Sidebars -->
           <div class="flex-1 flex overflow-hidden">
              <!-- Left Sidebar -->
-             <div class="w-56 border-r border-border-light bg-bg-secondary flex flex-col pt-6 pb-6 select-none shrink-0 h-full">
-                <div class="px-6 mb-8 flex items-center justify-between">
-                   <h1 class="text-xl font-bold tracking-widest text-text-primary">LUMO-V</h1>
-                </div>
+             <div class="w-56 border-r border-border-light bg-bg-secondary flex flex-col select-none shrink-0 h-full">
+                <div class="h-[72px] border-b border-border-light shrink-0"></div>
                 
-                <div class="flex-1 overflow-y-auto px-4 space-y-6">
+                <div class="flex-1 overflow-y-auto px-4 py-6 space-y-6">
                     <div>
                        <div class="space-y-1 text-[13px] font-medium">
                            <div @click="currentView = 'tracks'" :class="['px-3 py-2 rounded-lg cursor-pointer transition flex items-center gap-3', currentView === 'tracks' ? 'bg-white text-accent shadow-sm' : 'text-text-secondary hover:bg-gray-100 hover:text-text-primary']">
@@ -27,7 +25,7 @@ window.AppConfig = {
                     </div>
                     
                     <div>
-                       <div class="px-3 text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2 font-mono">Collection</div>
+                       <div class="px-3 text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2 font-mono">收藏 (Collection)</div>
                        <div class="space-y-1 text-[13px] font-medium text-text-secondary">
                            <div class="px-3 py-2 rounded-lg cursor-not-allowed flex items-center gap-3 opacity-50">
                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>
@@ -45,7 +43,7 @@ window.AppConfig = {
                     </div>
 
                     <div>
-                       <div class="px-3 text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2 font-mono">Playlists</div>
+                       <div class="px-3 text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2 font-mono">歌单 (Playlists)</div>
                        <div class="space-y-1 text-[13px] font-medium text-text-secondary">
                            <div class="px-3 py-2 flex items-center justify-between opacity-50 cursor-not-allowed">
                                <div class="flex items-center gap-3"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg> 日常音乐</div>
@@ -63,7 +61,7 @@ window.AppConfig = {
                     </div>
                     
                     <div>
-                       <div class="px-3 text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2 font-mono">Settings</div>
+                       <div class="px-3 text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2 font-mono">设置 (Settings)</div>
                        <div class="space-y-1 text-[13px] font-medium">
                            <div @click="currentView = 'settings'" :class="['px-3 py-2 rounded-lg cursor-pointer transition flex items-center gap-3', currentView === 'settings' ? 'bg-white text-accent shadow-sm' : 'text-text-secondary hover:bg-gray-100 hover:text-text-primary']">
                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
@@ -77,59 +75,54 @@ window.AppConfig = {
              <!-- Center Main Content -->
              <div class="flex-1 bg-bg-base flex flex-col relative overflow-hidden h-full">
                 <!-- Header -->
-                <header class="px-10 pt-10 pb-4 shrink-0 border-b border-border-light flex flex-col gap-4">
-                    <div class="flex items-end justify-between">
-                        <div>
-                           <div class="text-[10px] font-bold uppercase tracking-widest text-text-muted mb-1 font-mono">INDEX — VOL. 01</div>
-                           <h2 class="text-3xl font-semibold tracking-tight text-text-primary">{{ viewTitle }}</h2>
-                        </div>
+                <header class="h-[72px] px-8 shrink-0 border-b border-border-light flex items-center justify-between">
+                    <div></div>
                         <div class="flex items-center gap-5 text-text-muted">
                            <div class="relative flex items-center text-text-secondary">
                               <svg class="w-4 h-4 absolute left-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                              <input type="text" placeholder="SEARCH..." class="bg-transparent border-b border-border-light pl-6 pb-1 text-xs focus:outline-none focus:border-accent w-48 text-text-primary transition-colors uppercase tracking-wider" />
+                              <input type="text" placeholder="搜索..." class="bg-transparent border-b border-border-light pl-6 pb-1 text-xs focus:outline-none focus:border-accent w-48 text-text-primary transition-colors uppercase tracking-wider" />
                            </div>
                            <svg class="w-4 h-4 cursor-not-allowed opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path></svg>
                            <svg class="w-4 h-4 cursor-not-allowed opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
                            <svg class="w-4 h-4 cursor-not-allowed opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zm-10 10a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
                         </div>
-                    </div>
                 </header>
 
-                <main class="flex-1 overflow-y-auto px-10 relative">
+                <main class="flex-1 overflow-y-auto relative">
                    <!-- Settings/Scanner View -->
-                   <div v-show="currentView === 'settings'" class="py-8">
+                   <div v-show="currentView === 'settings'" class="p-8">
                       <div v-if="loading" class="flex items-center gap-3 text-text-muted">
                            <svg class="animate-spin h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                           Loading database...
+                           加载数据库中...
                       </div>
                       <div v-else>
                          <div class="flex items-center gap-4 mb-8">
                              <div class="bg-bg-secondary px-4 py-3 rounded-lg text-sm border border-border-light">
-                                 <span class="text-text-muted mr-2">Total Tables:</span>
+                                 <span class="text-text-muted mr-2">数据表总数:</span>
                                  <span class="font-mono font-bold text-accent">{{tablesCount}}</span>
                              </div>
                          </div>
                          <div class="w-full">
                              <div class="border border-border-light rounded-lg p-6 bg-bg-secondary mb-6 max-w-xl">
-                                 <h3 class="text-sm font-semibold mb-2">Add Scan Directory</h3>
-                                 <p class="text-text-secondary mb-4 leading-relaxed text-xs">Select a VFS Source and specify a relative path to add to your music scanner.</p>
+                                 <h3 class="text-sm font-semibold mb-2">添加扫描目录</h3>
+                                 <p class="text-text-secondary mb-4 leading-relaxed text-xs">选择一个虚拟文件系统源并指定相对路径，将其添加到音乐扫描器中。</p>
                                  <div class="flex items-end gap-3">
                                      <div class="flex-1">
-                                         <label class="block text-xs font-medium text-text-secondary mb-1">Source</label>
+                                         <label class="block text-xs font-medium text-text-secondary mb-1">目录源</label>
                                          <select v-model="selectedSourceId" class="w-full border border-border-light rounded-md px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-accent text-sm">
-                                             <option :value="null" disabled>Select Mount Source...</option>
+                                             <option :value="null" disabled>选择挂载源...</option>
                                              <option v-for="s in sources" :key="s.id" :value="s.id">{{s.name}} ({{s.kind}})</option>
                                          </select>
                                      </div>
                                      <div class="flex-1">
-                                         <label class="block text-xs font-medium text-text-secondary mb-1">Relative Path</label>
+                                         <label class="block text-xs font-medium text-text-secondary mb-1">相对路径</label>
                                          <div class="flex items-center gap-2">
                                              <input v-model="inputPath" type="text" placeholder="/" class="w-full border border-border-light rounded-md px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-accent text-sm" />
-                                             <button @click="openPicker" :disabled="!selectedSourceId" class="bg-gray-100 border border-border-light text-text-primary px-3 py-2 rounded-md hover:bg-gray-200 transition active:scale-95 text-sm font-medium whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">Browse...</button>
+                                             <button @click="openPicker" :disabled="!selectedSourceId" class="bg-gray-100 border border-border-light text-text-primary px-3 py-2 rounded-md hover:bg-gray-200 transition active:scale-95 text-sm font-medium whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">浏览...</button>
                                          </div>
                                      </div>
                                      <button @click="addScanDirectory" class="bg-black text-white px-4 py-2 rounded-md hover:bg-gray-800 transition active:scale-95 text-sm font-medium flex justify-center items-center h-[38px]" :disabled="!selectedSourceId">
-                                         Add
+                                         添加
                                      </button>
                                  </div>
                              </div>
@@ -138,24 +131,24 @@ window.AppConfig = {
                                  <table class="w-full text-left border-collapse text-sm">
                                      <thead>
                                          <tr class="bg-bg-secondary text-text-muted text-xs uppercase tracking-widest border-b border-border-light">
-                                             <th class="py-3 px-4 font-semibold">Source</th>
-                                             <th class="py-3 px-4 font-semibold">Path</th>
-                                             <th class="py-3 px-4 font-semibold text-right w-48">Actions</th>
+                                             <th class="py-3 px-4 font-semibold">存储源</th>
+                                             <th class="py-3 px-4 font-semibold">路径</th>
+                                             <th class="py-3 px-4 font-semibold text-right w-48">操作</th>
                                          </tr>
                                      </thead>
                                      <tbody>
                                          <tr v-if="scanDirectories.length === 0">
-                                             <td colspan="3" class="py-8 text-center text-text-muted text-xs">No scan directories configured.</td>
+                                             <td colspan="3" class="py-8 text-center text-text-muted text-xs">未配置任何扫描目录。</td>
                                          </tr>
                                          <tr v-for="dir in scanDirectories" :key="dir.id" class="border-b border-border-light last:border-0 hover:bg-gray-50 transition">
                                              <td class="py-3 px-4 font-medium text-text-primary">{{ getSourceName(dir.source_id) }}</td>
                                              <td class="py-3 px-4 text-text-secondary font-mono text-xs">{{ dir.path }}</td>
                                              <td class="py-3 px-4 text-right flex items-center justify-end gap-2">
-                                                 <button @click="deleteScanDirectory(dir.id)" class="text-text-muted hover:text-red-500 transition px-2 py-1 border border-transparent hover:border-red-200 hover:bg-red-50 rounded text-xs" :disabled="isScanning">Delete</button>
+                                                 <button @click="deleteScanDirectory(dir.id)" class="text-text-muted hover:text-red-500 transition px-2 py-1 border border-transparent hover:border-red-200 hover:bg-red-50 rounded text-xs" :disabled="isScanning">删除</button>
                                                  <button @click="startScan(dir)" class="bg-white border border-border-light text-text-primary hover:bg-gray-50 hover:text-black transition px-3 py-1 rounded text-xs font-medium flex items-center gap-1 shadow-sm" :disabled="isScanning">
                                                      <svg v-if="scanningId === dir.id" class="animate-spin w-3 h-3 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                                                      <svg v-else class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-                                                     {{ scanningId === dir.id ? 'Scanning...' : 'Scan' }}
+                                                     {{ scanningId === dir.id ? '扫描中...' : '扫描' }}
                                                  </button>
                                              </td>
                                          </tr>
@@ -175,24 +168,24 @@ window.AppConfig = {
                 </main>
                 
                 <!-- Footer Stats Placeholder -->
-                <div class="h-12 border-t border-border-light shrink-0 flex items-center px-10 justify-between text-[10px] font-mono tracking-widest text-text-muted">
-                    <div>1248 TRACKS / 98.6 GB / 3D 14H</div>
+                <div class="h-10 border-t border-border-light shrink-0 flex items-center px-8 justify-between text-[10px] font-mono tracking-widest text-text-muted">
+                    <div>1248 首歌曲 / 98.6 GB / 3天 14小时</div>
                     <div class="flex items-center gap-4">
                         <div class="w-12 h-px bg-border-light"></div>
-                        ARCHIVE
+                        归档
                     </div>
                 </div>
              </div>
 
              <!-- Right Context Panel -->
              <div class="w-72 border-l border-border-light bg-bg-base flex flex-col shrink-0 h-full">
-                <div class="h-[89px] border-b border-border-light flex items-end justify-center gap-6 text-[10px] font-bold tracking-widest uppercase px-6 shrink-0 text-text-muted pb-4">
-                    <div class="text-text-primary border-b-2 border-black pb-1 cursor-pointer">Lyrics</div>
-                    <div class="cursor-not-allowed opacity-50 pb-1">Queue</div>
-                    <div class="cursor-not-allowed opacity-50 pb-1">Info</div>
+                <div class="h-[72px] border-b border-border-light flex items-center justify-center gap-6 text-xs font-medium tracking-widest uppercase px-6 shrink-0 text-text-muted">
+                    <div class="text-text-primary border-b-2 border-black pb-1 cursor-pointer">歌词</div>
+                    <div class="cursor-not-allowed opacity-50 pb-1">队列</div>
+                    <div class="cursor-not-allowed opacity-50 pb-1">信息</div>
                 </div>
                 
-                <div class="flex-1 p-8 flex flex-col gap-8 overflow-y-auto">
+                <div class="flex-1 p-6 flex flex-col gap-6 overflow-y-auto">
                     <!-- Album Art -->
                     <div class="w-full aspect-square bg-bg-secondary rounded-lg border border-border-light overflow-hidden flex items-center justify-center text-text-muted relative">
                         <img v-if="currentTrack?.cover_url" :src="currentTrack.cover_url" class="w-full h-full object-cover" />
@@ -201,39 +194,41 @@ window.AppConfig = {
                     
                     <!-- Now Playing Info -->
                     <div class="flex flex-col">
-                        <div class="text-[10px] font-bold tracking-widest uppercase text-text-muted mb-3 font-mono">Now Playing</div>
-                        <div class="text-2xl font-semibold text-text-primary tracking-tight truncate leading-tight mb-1">{{ currentTrack ? currentTrack.title : 'No Track' }}</div>
-                        <div class="text-xs font-medium text-text-secondary tracking-wide uppercase">{{ currentTrack ? currentTrack.artist_name : 'Unknown Artist' }}</div>
-                        <div class="text-xs text-text-muted italic mt-1.5 truncate">{{ currentTrack ? currentTrack.album_title : 'No Album' }}</div>
+                        <div class="text-[10px] font-bold tracking-widest uppercase text-text-muted mb-3 font-mono">正在播放</div>
+                        <div class="text-2xl font-semibold text-text-primary tracking-tight truncate leading-tight mb-1">{{ currentTrack ? currentTrack.title : '暂无歌曲' }}</div>
+                        <div class="text-xs font-medium text-text-secondary tracking-wide uppercase">{{ currentTrack ? currentTrack.artist_name : '未知艺人' }}</div>
+                        <div class="text-xs text-text-muted italic mt-1.5 truncate">{{ currentTrack ? currentTrack.album_title : '未知专辑' }}</div>
                     </div>
                     
                     <!-- Lyrics Placeholder -->
                     <div class="flex-1 border-t border-border-light pt-6 flex flex-col gap-3.5 text-xs text-text-secondary overflow-y-auto pb-6">
-                        <div class="text-text-primary">We are going on a journey</div>
-                        <div>A journey to experience</div>
-                        <div>We are going on a journey</div>
-                        <div class="italic font-medium text-black">A journey to experience</div>
-                        <div>We are going on a journey</div>
+                        <div class="text-text-primary">我们踏上一段旅程</div>
+                        <div>去体验的旅程</div>
+                        <div>我们踏上一段旅程</div>
+                        <div class="italic font-medium text-black">去体验的旅程</div>
+                        <div>我们踏上一段旅程</div>
                     </div>
                 </div>
              </div>
           </div>
 
           <!-- Bottom Player Bar -->
-          <div class="h-[88px] bg-bg-base flex items-center px-8 justify-between shadow-[0_-4px_24px_rgba(0,0,0,0.02)] border-t border-border-light relative z-10 shrink-0">
+          <!-- Bottom Player Bar -->
+          <div class="h-24 bg-bg-base flex items-center px-8 justify-between shadow-sm border-t border-border-light relative z-10 shrink-0">
              <!-- Left: Track Info Thumbnail -->
-             <div class="flex items-center gap-4 w-1/4 min-w-[200px]">
-                 <div class="w-12 h-12 bg-bg-secondary rounded border border-border-light flex items-center justify-center text-text-muted overflow-hidden bg-cover bg-center" :style="currentTrack?.cover_url ? 'background-image: url(' + currentTrack.cover_url + ')' : ''">
-                    <svg v-if="!currentTrack?.cover_url" class="w-5 h-5 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path></svg>
+             <div class="flex-1 flex items-center gap-4 min-w-[200px]">
+                 <div class="w-14 h-14 bg-bg-secondary rounded-md border border-border-light flex items-center justify-center text-text-muted overflow-hidden bg-cover bg-center shadow-sm" :style="currentTrack?.cover_url ? 'background-image: url(' + currentTrack.cover_url + ')' : ''">
+                    <svg v-if="!currentTrack?.cover_url" class="w-6 h-6 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path></svg>
                  </div>
-                 <div class="flex flex-col truncate">
-                    <div class="font-semibold text-sm text-text-primary tracking-tight truncate">{{ currentTrack ? currentTrack.title : 'No Track' }}</div>
-                    <div class="text-[10px] uppercase tracking-wider font-medium text-text-secondary mt-0.5 truncate">{{ currentTrack ? currentTrack.artist_name : 'Unknown Artist' }}</div>
+                 <div class="flex flex-col truncate pr-4">
+                    <div class="font-medium text-[13px] text-text-primary tracking-tight truncate">{{ currentTrack ? currentTrack.title : '暂无歌曲' }}</div>
+                    <div class="text-[11px] font-medium text-text-muted mt-1 truncate">{{ currentTrack ? currentTrack.artist_name : '未知艺人' }}</div>
                  </div>
              </div>
              
              <!-- Center: Controls & Thin Progress -->
-             <div class="flex-1 flex items-center justify-center max-w-3xl px-8 gap-8">
+             <div class="flex-[2] flex flex-col items-center justify-center max-w-2xl px-6 gap-2.5">
+                 <!-- Controls -->
                  <div class="flex items-center gap-6">
                      <button @click="togglePlayMode" class="text-text-muted hover:text-text-primary transition active:scale-95" :class="{'text-accent': playMode !== 'normal'}">
                         <svg v-if="playMode === 'shuffle'" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
@@ -243,39 +238,46 @@ window.AppConfig = {
                         <span v-if="playMode === 'loop-one'" class="absolute -mt-4 ml-3 text-[8px] font-bold">1</span>
                      </button>
                      
-                     <button @click="playPrevious" class="text-text-primary hover:text-black transition active:scale-95"><svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg></button>
-                     
-                     <button @click="togglePlay" class="w-8 h-8 flex items-center justify-center text-text-primary hover:text-black transition active:scale-95">
-                        <svg v-if="!isPlaying" class="w-6 h-6 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"></path></svg>
-                        <svg v-else class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6zm8 0h4v16h-4z"></path></svg>
+                     <button @click="playPrevious" class="text-text-primary hover:text-black transition active:scale-95">
+                         <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
                      </button>
                      
-                     <button @click="playNext" class="text-text-primary hover:text-black transition active:scale-95"><svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"></path></svg></button>
+                     <button @click="togglePlay" class="w-10 h-10 bg-white shadow-sm border border-border-light rounded-full flex items-center justify-center text-text-primary hover:text-black hover:scale-105 transition-all active:scale-95">
+                        <svg v-if="!isPlaying" class="w-5 h-5 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"></path></svg>
+                        <svg v-else class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6zm8 0h4v16h-4z"></path></svg>
+                     </button>
                      
-                     <button class="text-text-muted cursor-not-allowed opacity-50"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg></button>
+                     <button @click="playNext" class="text-text-primary hover:text-black transition active:scale-95">
+                         <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"></path></svg>
+                     </button>
+                     
+                     <button class="text-text-muted cursor-not-allowed opacity-50">
+                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                     </button>
                  </div>
                  
-                 <div class="flex-1 flex items-center gap-4">
-                     <span class="text-[9px] text-text-muted font-mono w-8 text-right tabular-nums">{{ formatTime(currentTime) }}</span>
-                     <div class="flex-1 h-[2px] bg-border-light cursor-pointer group relative rounded-full" @click="seekByClick">
-                         <div class="h-full bg-black group-hover:bg-accent transition-colors absolute left-0 pointer-events-none rounded-full" :style="{ width: progressPercent + '%' }"></div>
+                 <!-- Progress Bar -->
+                 <div class="w-full flex items-center gap-3">
+                     <span class="text-[10px] text-text-muted font-mono w-10 text-right tabular-nums">{{ formatTime(currentTime) }}</span>
+                     <div class="flex-1 h-1 bg-gray-200 cursor-pointer group relative rounded-full" @click="seekByClick">
+                         <div class="h-full bg-text-primary group-hover:bg-accent transition-colors absolute left-0 pointer-events-none rounded-full" :style="{ width: progressPercent + '%' }"></div>
                      </div>
-                     <span class="text-[9px] text-text-muted font-mono w-8 tabular-nums">{{ formatTime(duration) }}</span>
+                     <span class="text-[10px] text-text-muted font-mono w-10 tabular-nums">{{ formatTime(duration) }}</span>
                  </div>
              </div>
              
              <!-- Right: Volume -->
-             <div class="w-1/4 min-w-[200px] flex justify-end items-center gap-5 text-text-muted">
+             <div class="flex-1 flex justify-end items-center gap-5 text-text-muted min-w-[200px]">
                  <button @click="toggleMute" class="hover:text-text-primary transition">
                     <svg v-if="isMuted || volume === 0" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"></path></svg>
                     <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path></svg>
                  </button>
-                 <div class="w-16 h-[2px] bg-border-light cursor-pointer relative rounded-full" @click="setVolumeByClick">
+                 <div class="w-20 h-1 bg-gray-200 cursor-pointer relative rounded-full" @click="setVolumeByClick">
                      <div class="h-full bg-text-muted absolute left-0 pointer-events-none rounded-full" :style="{ width: (volume * 100) + '%' }"></div>
                  </div>
-                 <div class="h-3 w-px bg-border-light mx-1"></div>
-                 <button class="cursor-not-allowed opacity-50"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg></button>
-                 <button class="cursor-not-allowed opacity-50"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg></button>
+                 <div class="h-4 w-px bg-border-light mx-2"></div>
+                 <button class="cursor-not-allowed opacity-50 hover:text-black transition"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg></button>
+                 <button class="cursor-not-allowed opacity-50 hover:text-black transition"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg></button>
              </div>
           </div>
 
@@ -283,7 +285,7 @@ window.AppConfig = {
           <div v-if="showFolderPicker" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center">
               <div class="bg-white rounded-xl shadow-2xl w-[600px] max-h-[80vh] flex flex-col overflow-hidden border border-border-light">
                   <div class="px-6 py-4 border-b border-border-light flex items-center justify-between bg-bg-secondary shrink-0">
-                      <h3 class="font-semibold text-text-primary">Select Directory</h3>
+                      <h3 class="font-semibold text-text-primary">选择目录</h3>
                       <button @click="cancelPicker" class="text-text-muted hover:text-black transition">
                           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                       </button>
@@ -299,7 +301,7 @@ window.AppConfig = {
                           <svg class="animate-spin h-6 w-6 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                       </div>
                       <div v-else-if="pickerItems.length === 0" class="flex justify-center items-center h-32 text-text-muted text-sm">
-                          Empty directory
+                          空目录
                       </div>
                       <div v-else class="flex flex-col">
                           <div v-for="item in pickerItems" :key="item.name" @click="navigatePicker(item.name)" class="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 cursor-pointer rounded-md transition">
@@ -309,8 +311,8 @@ window.AppConfig = {
                       </div>
                   </div>
                   <div class="px-6 py-4 border-t border-border-light bg-bg-secondary flex justify-end gap-3 shrink-0">
-                      <button @click="cancelPicker" class="px-4 py-2 text-sm font-medium text-text-secondary hover:text-text-primary transition">Cancel</button>
-                      <button @click="confirmPicker" class="px-4 py-2 text-sm font-medium bg-black text-white rounded hover:bg-gray-800 transition">Select Current Folder</button>
+                      <button @click="cancelPicker" class="px-4 py-2 text-sm font-medium text-text-secondary hover:text-text-primary transition">取消</button>
+                      <button @click="confirmPicker" class="px-4 py-2 text-sm font-medium bg-black text-white rounded hover:bg-gray-800 transition">选择当前文件夹</button>
                   </div>
               </div>
           </div>
@@ -326,8 +328,8 @@ window.AppConfig = {
 
         const currentView = ref('tracks');
         const viewTitle = computed(() => {
-            if (currentView.value === 'settings') return 'Settings';
-            return 'All ' + currentView.value;
+            if (currentView.value === 'settings') return '设置';
+            return '全部' + (currentView.value === 'tracks' ? '歌曲' : '艺人');
         });
 
         const loading = ref(true);
@@ -504,15 +506,15 @@ window.AppConfig = {
             if (isScanning.value) return;
             isScanning.value = true;
             scanningId.value = dir.id;
-            scanProgress.value = 'Starting scan...';
+            scanProgress.value = '开始扫描...';
             try {
                 await window.scanDirectory(dir.source_id, dir.path, (msg) => {
                     scanProgress.value = msg;
                 });
-                scanProgress.value = 'Scan completed successfully!';
+                scanProgress.value = '扫描成功完成！';
             } catch (e) {
                 console.error(e);
-                scanProgress.value = 'Error: ' + e;
+                scanProgress.value = '错误: ' + e;
             } finally {
                 isScanning.value = false;
                 scanningId.value = null;

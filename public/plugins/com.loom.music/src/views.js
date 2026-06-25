@@ -16,41 +16,41 @@ const getArtworkUrl = (cachePath) => {
 const TracksView = {
     template: `
         <div class="w-full">
-            <div v-if="loading" class="text-text-muted">Loading tracks...</div>
+            <div v-if="loading" class="text-text-muted">加载歌曲中...</div>
             <div v-else-if="tracks.length === 0" class="text-text-muted flex flex-col items-center justify-center h-64">
                 <svg class="w-12 h-12 mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path></svg>
-                <p>No tracks found. Go to Settings to scan a folder.</p>
+                <p>未找到歌曲。请前往设置扫描文件夹。</p>
             </div>
             <table v-else class="w-full text-left border-collapse">
                 <thead>
-                    <tr class="text-[10px] uppercase tracking-widest text-text-muted border-b-2 border-black">
-                        <th class="pb-3 pl-4 font-bold w-16 text-center">NO.</th>
-                        <th class="pb-3 font-bold">TITLE</th>
-                        <th class="pb-3 font-bold">ARTIST</th>
-                        <th class="pb-3 font-bold">ALBUM</th>
-                        <th class="pb-3 pr-6 font-bold text-right">TIME</th>
-                        <th class="pb-3 pr-4 font-bold text-right">FORMAT</th>
+                    <tr class="text-xs uppercase tracking-widest text-text-muted border-b border-border-light bg-bg-base sticky top-0 z-10 backdrop-blur-md bg-opacity-90">
+                        <th class="py-3 pl-6 font-medium w-16 text-center">序号</th>
+                        <th class="py-3 font-medium">标题</th>
+                        <th class="py-3 font-medium">艺人</th>
+                        <th class="py-3 font-medium">专辑</th>
+                        <th class="py-3 pr-8 font-medium text-right">时长</th>
+                        <th class="py-3 pr-6 font-medium text-right">格式</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr v-for="(track, index) in tracks" :key="track.id" 
                         class="group hover:bg-gray-50 transition cursor-pointer border-b border-gray-100 last:border-0"
                         @dblclick="playTrack(track)">
-                        <td class="py-4 pl-4 text-center text-text-muted font-mono text-xs relative tabular-nums">
+                        <td class="py-2.5 pl-6 text-center text-text-muted font-mono text-xs relative tabular-nums">
                             <span class="group-hover:hidden">{{ String(index + 1).padStart(2, '0') }}</span>
                             <button @click.stop="playTrack(track)" class="hidden group-hover:flex absolute inset-0 items-center justify-center text-accent">
-                                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"></path></svg>
+                                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"></path></svg>
                             </button>
                         </td>
-                        <td class="py-4 font-medium text-text-primary">
+                        <td class="py-2.5 font-medium text-text-primary text-sm">
                             <div class="flex items-center gap-3">
                                 <span class="truncate max-w-[280px]">{{ track.title }}</span>
                             </div>
                         </td>
-                        <td class="py-4 text-text-secondary text-sm truncate max-w-[150px]">{{ track.artist_name || 'Unknown' }}</td>
-                        <td class="py-4 text-text-secondary text-sm italic truncate max-w-[150px]">{{ track.album_title || 'Unknown' }}</td>
-                        <td class="py-4 pr-6 text-right text-text-muted font-mono text-xs tabular-nums">{{ formatTime(track.duration_ms ? track.duration_ms / 1000 : 0) }}</td>
-                        <td class="py-4 pr-4 text-right text-text-muted font-mono text-[10px] uppercase tracking-wider">FLAC</td>
+                        <td class="py-2.5 text-text-secondary text-xs truncate max-w-[150px]">{{ track.artist_name || '未知' }}</td>
+                        <td class="py-2.5 text-text-secondary text-xs italic truncate max-w-[150px]">{{ track.album_title || '未知' }}</td>
+                        <td class="py-2.5 pr-8 text-right text-text-muted font-mono text-xs tabular-nums">{{ formatTime(track.duration_ms ? track.duration_ms / 1000 : 0) }}</td>
+                        <td class="py-2.5 pr-6 text-right text-text-muted font-mono text-[10px] uppercase tracking-wider">FLAC</td>
                     </tr>
                 </tbody>
             </table>
@@ -102,28 +102,28 @@ const TracksView = {
 const ArtistsView = {
     template: `
         <div class="w-full">
-            <div v-if="loading" class="text-text-muted">Loading artists...</div>
+            <div v-if="loading" class="text-text-muted">加载艺人中...</div>
             <div v-else-if="artists.length === 0" class="text-text-muted flex flex-col items-center justify-center h-64">
-                <p>No artists found.</p>
+                <p>未找到艺人。</p>
             </div>
             <table v-else class="w-full text-left border-collapse">
                 <thead>
-                    <tr class="text-[10px] uppercase tracking-widest text-text-muted border-b-2 border-black">
-                        <th class="pb-3 pl-4 font-bold w-16 text-center">NO.</th>
-                        <th class="pb-3 font-bold">ARTIST</th>
-                        <th class="pb-3 pr-6 font-bold text-right">SONGS</th>
-                        <th class="pb-3 pr-4 font-bold text-right">ALBUMS</th>
+                    <tr class="text-xs uppercase tracking-widest text-text-muted border-b border-border-light bg-bg-base sticky top-0 z-10 backdrop-blur-md bg-opacity-90">
+                        <th class="py-3 pl-6 font-medium w-16 text-center">序号</th>
+                        <th class="py-3 font-medium">艺人</th>
+                        <th class="py-3 pr-8 font-medium text-right">歌曲数</th>
+                        <th class="py-3 pr-6 font-medium text-right">专辑数</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr v-for="(artist, index) in artists" :key="artist.id" 
                         class="group hover:bg-gray-50 transition cursor-pointer border-b border-gray-100 last:border-0">
-                        <td class="py-4 pl-4 text-center text-text-muted font-mono text-xs tabular-nums">{{ String(index + 1).padStart(2, '0') }}</td>
-                        <td class="py-4 font-medium text-text-primary">
+                        <td class="py-2.5 pl-6 text-center text-text-muted font-mono text-xs tabular-nums">{{ String(index + 1).padStart(2, '0') }}</td>
+                        <td class="py-2.5 font-medium text-text-primary text-sm">
                             <span class="truncate max-w-[280px]">{{ artist.name }}</span>
                         </td>
-                        <td class="py-4 pr-6 text-right text-text-secondary text-sm font-mono tabular-nums">{{ artist.tracks_count }}</td>
-                        <td class="py-4 pr-4 text-right text-text-secondary text-sm font-mono tabular-nums">{{ artist.albums_count }}</td>
+                        <td class="py-2.5 pr-8 text-right text-text-secondary text-xs font-mono tabular-nums">{{ artist.tracks_count }}</td>
+                        <td class="py-2.5 pr-6 text-right text-text-secondary text-xs font-mono tabular-nums">{{ artist.albums_count }}</td>
                     </tr>
                 </tbody>
             </table>
