@@ -372,7 +372,7 @@ const AlbumDetailView = {
                     LEFT JOIN media_files m ON t.primary_file_id = m.id
                     LEFT JOIN artwork art ON al.cover_artwork_id = art.id
                     WHERE t.album_id = ?
-                    ORDER BY t.track_number ASC, t.title ASC
+                    ORDER BY t.track_no ASC, t.title ASC
                 `, [props.albumId]);
                 tracks.value = trackRows.map(r => ({ ...r, cover_url: getArtworkUrl(r.cache_path) }));
                 

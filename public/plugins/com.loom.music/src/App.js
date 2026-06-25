@@ -204,19 +204,19 @@ window.AppConfig = {
                 </div>
                 
                 <!-- Bottom Area: Flowing Lyrics (with gradient mask) -->
-                <div class="flex-1 px-6 pb-12 flex flex-col gap-5 text-[14px] font-medium text-text-secondary overflow-y-auto text-center" style="mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%); -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);">
-                    <div class="h-2 shrink-0"></div>
-                    <div class="hover:text-black transition-colors duration-300 cursor-pointer">我们踏上一段旅程</div>
-                    <div class="hover:text-black transition-colors duration-300 cursor-pointer">去体验的旅程</div>
-                    <div class="hover:text-black transition-colors duration-300 cursor-pointer">我们踏上一段旅程</div>
-                    <div class="font-bold text-text-primary text-[16px] transform scale-[1.02] transition-all duration-300 py-1.5">去体验的旅程</div>
-                    <div class="hover:text-black transition-colors duration-300 cursor-pointer">我们踏上一段旅程</div>
-                    <div class="hover:text-black transition-colors duration-300 cursor-pointer">在星光下漫步</div>
-                    <div class="hover:text-black transition-colors duration-300 cursor-pointer">寻找那遥远的梦</div>
-                    <div class="hover:text-black transition-colors duration-300 cursor-pointer">一切的答案都在风中</div>
-                    <div class="hover:text-black transition-colors duration-300 cursor-pointer">静静地听</div>
-                    <div class="hover:text-black transition-colors duration-300 cursor-pointer">心跳的节奏</div>
-                    <div class="h-8 shrink-0"></div>
+                <div class="flex-1 relative overflow-hidden" style="mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%); -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);" id="lyrics-container">
+                    <div class="absolute top-0 left-0 right-0 transition-transform duration-500 ease-out flex flex-col gap-5 text-[14px] font-medium text-text-secondary text-center"
+                         :style="{ transform: 'translateY(' + lyricsOffsetY + 'px)' }" id="lyrics-inner">
+                        <div v-if="!currentLyrics || currentLyrics.length === 0" class="text-text-muted mt-32">暂无歌词</div>
+                        <div v-for="(line, index) in currentLyrics" :key="index" :id="'lyric-line-' + index"
+                             @click="actions.seek(line.time)"
+                             :class="[
+                                 'transition-all duration-300 cursor-pointer px-6',
+                                 index === activeLyricIndex ? 'font-bold text-text-primary text-[16px] transform scale-[1.02] py-1.5' : 'hover:text-black'
+                             ]">
+                            {{ line.text }}
+                        </div>
+                    </div>
                 </div>
              </div>
           </div>
@@ -433,6 +433,46 @@ window.AppConfig = {
         const playMode = computed(() => state.playMode);
         const queue = computed(() => state.queue);
         const queueIndex = computed(() => state.queueIndex);
+        const currentLyrics = computed(() => state.currentLyrics);
+        const activeLyricIndex = computed(() => {
+            const lyrics = state.currentLyrics;
+            if (!lyrics || lyrics.length === 0) return -1;
+            const time = state.currentTime;
+            for (let i = lyrics.length - 1; i >= 0; i--) {
+                if (time >= lyrics[i].time - 0.2) { // Add 200ms offset for better sync feeling
+                    return i;
+                }
+            }
+            return -1;
+        });
+
+        const lyricsOffsetY = ref(0);
+
+        const updateLyricsOffset = () => {
+             const container = document.getElementById('lyrics-container');
+             const inner = document.getElementById('lyrics-inner');
+             if (!container || !inner) return;
+             
+             const containerHeight = container.clientHeight;
+             const targetIndex = activeLyricIndex.value >= 0 ? activeLyricIndex.value : 0;
+             const el = document.getElementById('lyric-line-' + targetIndex);
+             
+             if (el) {
+                 const elTop = el.offsetTop;
+                 const elHeight = el.clientHeight;
+                 lyricsOffsetY.value = (containerHeight / 2) - elTop - (elHeight / 2);
+             } else {
+                 lyricsOffsetY.value = 0;
+             }
+        };
+
+        watch(activeLyricIndex, () => {
+             setTimeout(updateLyricsOffset, 50);
+        });
+        
+        watch(currentLyrics, () => {
+             setTimeout(updateLyricsOffset, 50);
+        });
         
         const progressPercent = computed(() => {
             if (duration.value <= 0) return 0;
@@ -594,6 +634,9 @@ window.AppConfig = {
             scanningId.value = dir.id;
             scanProgress.value = '开始扫描...';
             try {
+                if (window.prepareScannerCache) {
+                    await window.prepareScannerCache(dir.source_id);
+                }
                 await window.scanDirectory(dir.source_id, dir.path, (msg) => {
                     scanProgress.value = msg;
                 });
@@ -602,6 +645,9 @@ window.AppConfig = {
                 console.error(e);
                 scanProgress.value = '错误: ' + e;
             } finally {
+                if (window.finishScannerCache) {
+                    window.finishScannerCache();
+                }
                 isScanning.value = false;
                 scanningId.value = null;
                 setTimeout(() => { if (!isScanning.value) scanProgress.value = ''; }, 3000);
@@ -618,7 +664,7 @@ window.AppConfig = {
             showFolderPicker, currentPickerPath, pickerItems, isLoadingPicker,
             openPicker, navigatePicker, confirmPicker, cancelPicker,
             currentTrack, isPlaying, currentTime, duration, volume, isMuted, playMode, progressPercent,
-            queue, queueIndex, playQueueTrack,
+            queue, queueIndex, currentLyrics, activeLyricIndex, lyricsOffsetY, playQueueTrack,
             formatTime, togglePlay, toggleMute, togglePlayMode, seekByClick, setVolumeByClick,
             playNext, playPrevious
         };

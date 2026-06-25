@@ -4,8 +4,44 @@ const { reactive, ref, watch } = Vue;
 // The singleton audio element
 const audio = new Audio();
 
+function parseLrc(lrcContent) {
+    const lines = lrcContent.split('\n');
+    const lyrics = [];
+    const timeRegex = /\[(\d+):(\d{2})(\.\d{1,3})?\]/g;
+    
+    for (let line of lines) {
+        line = line.trim();
+        if (!line) continue;
+        
+        let match;
+        const times = [];
+        
+        while ((match = timeRegex.exec(line)) !== null) {
+            const minutes = parseInt(match[1]);
+            const seconds = parseInt(match[2]);
+            const ms = match[3] ? parseFloat('0' + match[3]) : 0;
+            times.push(minutes * 60 + seconds + ms);
+        }
+        
+        if (times.length > 0) {
+            const text = line.replace(/\[\d+:\d{2}(\.\d{1,3})?\]/g, '').trim();
+            if (text) {
+                for (let time of times) {
+                    lyrics.push({ time, text });
+                }
+            }
+        }
+    }
+    
+    // Sort by time
+    lyrics.sort((a, b) => a.time - b.time);
+    return lyrics;
+}
+
 const playerState = reactive({
     currentTrack: null, // Full track info from DB
+    currentLyrics: [],
+    lyricsFormat: 'plain',
     isPlaying: false,
     currentTime: 0,
     duration: 0,
@@ -66,6 +102,28 @@ const playerActions = {
         }
 
         playerState.currentTrack = track;
+        
+        // Fetch lyrics
+        try {
+            const lyricsRes = await window.loomContext.db.query("SELECT * FROM lyrics WHERE track_id = ?", [track.id]);
+            if (lyricsRes && lyricsRes.length > 0) {
+                const lrc = lyricsRes[0];
+                playerState.lyricsFormat = lrc.format;
+                
+                const hasTimeTags = /\[\d+:\d{2}(\.\d{1,3})?\]/.test(lrc.content);
+                
+                if (lrc.format === 'lrc' || lrc.synced || hasTimeTags) {
+                    playerState.currentLyrics = parseLrc(lrc.content);
+                } else {
+                    playerState.currentLyrics = lrc.content.split('\n').map(line => ({ time: 0, text: line })).filter(l => l.text.trim());
+                }
+            } else {
+                playerState.currentLyrics = [];
+            }
+        } catch (err) {
+            console.error("Failed to load lyrics:", err);
+            playerState.currentLyrics = [];
+        }
         
         // Build the physical VFS path using the custom protocol
         const encodedPath = track.normalized_path.split('/').map(encodeURIComponent).join('/');
