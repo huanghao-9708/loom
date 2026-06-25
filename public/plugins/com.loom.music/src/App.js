@@ -4,69 +4,165 @@ const { ref, onMounted } = Vue;
 window.AppConfig = {
     template: `
       <div class="flex h-full w-full flex-col">
-          <!-- Top Area: Main content + Sidebar -->
+          <!-- Top Area: Main content + Sidebars -->
           <div class="flex-1 flex overflow-hidden">
-             <!-- Sidebar -->
-             <div class="w-60 border-r border-border-light bg-bg-secondary flex flex-col px-4 py-6">
-                <div class="text-[11px] font-bold uppercase tracking-widest text-text-muted mb-4 font-mono">Library</div>
-                <div class="space-y-1">
-                    <div @click="currentView = 'tracks'" :class="['px-3 py-2 rounded-md cursor-pointer transition flex items-center gap-2 font-medium', currentView === 'tracks' ? 'bg-gray-200 text-text-primary' : 'text-text-secondary hover:bg-gray-100']">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path></svg>
-                        Tracks
-                    </div>
-                    <div @click="currentView = 'albums'" :class="['px-3 py-2 rounded-md cursor-pointer transition flex items-center gap-2 font-medium', currentView === 'albums' ? 'bg-gray-200 text-text-primary' : 'text-text-secondary hover:bg-gray-100']">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
-                        Albums
-                    </div>
-                    <div @click="currentView = 'artists'" :class="['px-3 py-2 rounded-md cursor-pointer transition flex items-center gap-2 font-medium', currentView === 'artists' ? 'bg-gray-200 text-text-primary' : 'text-text-secondary hover:bg-gray-100']">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
-                        Artists
-                    </div>
+             <!-- Left Sidebar -->
+             <div class="w-56 border-r border-border-light bg-bg-secondary flex flex-col pt-6 pb-6 select-none shrink-0 h-full">
+                <div class="px-6 mb-8 flex items-center justify-between">
+                   <h1 class="text-xl font-bold tracking-widest text-text-primary">LUMO-V</h1>
                 </div>
                 
-                <div class="mt-8 text-[11px] font-bold uppercase tracking-widest text-text-muted mb-4 font-mono">System</div>
-                <div class="space-y-1">
-                    <div @click="currentView = 'settings'" :class="['px-3 py-2 rounded-md cursor-pointer transition flex items-center gap-2 font-medium', currentView === 'settings' ? 'bg-gray-200 text-text-primary' : 'text-text-secondary hover:bg-gray-100']">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                        Settings
+                <div class="flex-1 overflow-y-auto px-4 space-y-6">
+                    <div>
+                       <div class="space-y-1 text-[13px] font-medium">
+                           <div @click="currentView = 'tracks'" :class="['px-3 py-2 rounded-lg cursor-pointer transition flex items-center gap-3', currentView === 'tracks' ? 'bg-white text-accent shadow-sm' : 'text-text-secondary hover:bg-gray-100 hover:text-text-primary']">
+                               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path></svg>
+                               全部歌曲
+                           </div>
+                           <div @click="currentView = 'artists'" :class="['px-3 py-2 rounded-lg cursor-pointer transition flex items-center gap-3', currentView === 'artists' ? 'bg-white text-accent shadow-sm' : 'text-text-secondary hover:bg-gray-100 hover:text-text-primary']">
+                               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                               艺人
+                           </div>
+                       </div>
+                    </div>
+                    
+                    <div>
+                       <div class="px-3 text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2 font-mono">Collection</div>
+                       <div class="space-y-1 text-[13px] font-medium text-text-secondary">
+                           <div class="px-3 py-2 rounded-lg cursor-not-allowed flex items-center gap-3 opacity-50">
+                               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>
+                               收藏歌曲
+                           </div>
+                           <div class="px-3 py-2 rounded-lg cursor-not-allowed flex items-center gap-3 opacity-50">
+                               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                               最近播放
+                           </div>
+                           <div class="px-3 py-2 rounded-lg cursor-not-allowed flex items-center gap-3 opacity-50">
+                               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
+                               播放队列
+                           </div>
+                       </div>
+                    </div>
+
+                    <div>
+                       <div class="px-3 text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2 font-mono">Playlists</div>
+                       <div class="space-y-1 text-[13px] font-medium text-text-secondary">
+                           <div class="px-3 py-2 flex items-center justify-between opacity-50 cursor-not-allowed">
+                               <div class="flex items-center gap-3"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg> 日常音乐</div>
+                               <span class="text-[10px] text-text-muted font-mono">58</span>
+                           </div>
+                           <div class="px-3 py-2 flex items-center justify-between opacity-50 cursor-not-allowed">
+                               <div class="flex items-center gap-3"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg> 工作专注</div>
+                               <span class="text-[10px] text-text-muted font-mono">24</span>
+                           </div>
+                           <div class="px-3 py-2 mt-2 flex items-center gap-3 text-text-muted cursor-not-allowed opacity-50 hover:bg-gray-100 rounded-lg transition">
+                               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                               新建歌单
+                           </div>
+                       </div>
+                    </div>
+                    
+                    <div>
+                       <div class="px-3 text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2 font-mono">Settings</div>
+                       <div class="space-y-1 text-[13px] font-medium">
+                           <div @click="currentView = 'settings'" :class="['px-3 py-2 rounded-lg cursor-pointer transition flex items-center gap-3', currentView === 'settings' ? 'bg-white text-accent shadow-sm' : 'text-text-secondary hover:bg-gray-100 hover:text-text-primary']">
+                               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                               设置
+                           </div>
+                       </div>
                     </div>
                 </div>
              </div>
 
-             <!-- Main Content -->
-             <div class="flex-1 bg-bg-base flex flex-col relative overflow-hidden">
-                <header class="h-16 border-b border-border-light flex items-center px-8 shrink-0">
-                   <h1 class="text-2xl font-semibold tracking-tight capitalize">{{ viewTitle }}</h1>
+             <!-- Center Main Content -->
+             <div class="flex-1 bg-bg-base flex flex-col relative overflow-hidden h-full">
+                <!-- Header -->
+                <header class="px-10 pt-10 pb-4 shrink-0 border-b border-border-light flex flex-col gap-4">
+                    <div class="flex items-end justify-between">
+                        <div>
+                           <div class="text-[10px] font-bold uppercase tracking-widest text-text-muted mb-1 font-mono">INDEX — VOL. 01</div>
+                           <h2 class="text-3xl font-semibold tracking-tight text-text-primary">{{ viewTitle }}</h2>
+                        </div>
+                        <div class="flex items-center gap-5 text-text-muted">
+                           <div class="relative flex items-center text-text-secondary">
+                              <svg class="w-4 h-4 absolute left-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                              <input type="text" placeholder="SEARCH..." class="bg-transparent border-b border-border-light pl-6 pb-1 text-xs focus:outline-none focus:border-accent w-48 text-text-primary transition-colors uppercase tracking-wider" />
+                           </div>
+                           <svg class="w-4 h-4 cursor-not-allowed opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path></svg>
+                           <svg class="w-4 h-4 cursor-not-allowed opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
+                           <svg class="w-4 h-4 cursor-not-allowed opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zm-10 10a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
+                        </div>
+                    </div>
                 </header>
-                <main class="flex-1 overflow-y-auto p-8 relative">
+
+                <main class="flex-1 overflow-y-auto px-10 relative">
                    <!-- Settings/Scanner View -->
-                   <div v-show="currentView === 'settings'">
+                   <div v-show="currentView === 'settings'" class="py-8">
                       <div v-if="loading" class="flex items-center gap-3 text-text-muted">
                            <svg class="animate-spin h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                            Loading database...
                       </div>
                       <div v-else>
                          <div class="flex items-center gap-4 mb-8">
-                             <div class="bg-gray-100 px-4 py-3 rounded-lg text-sm border border-border-light">
+                             <div class="bg-bg-secondary px-4 py-3 rounded-lg text-sm border border-border-light">
                                  <span class="text-text-muted mr-2">Total Tables:</span>
                                  <span class="font-mono font-bold text-accent">{{tablesCount}}</span>
                              </div>
                          </div>
-                         <div class="max-w-md">
-                             <div class="border border-border-light rounded-lg p-6 bg-bg-secondary">
-                                 <h3 class="text-sm font-semibold mb-2">Import Music</h3>
-                                 <p class="text-text-secondary mb-4 leading-relaxed">Select a local directory or remote WebDAV source to scan and import audio files into your Lumo library.</p>
-                                 <div class="flex flex-col gap-3">
-                                     <select v-model="selectedSourceId" class="border border-border-light rounded-md px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-black">
-                                         <option :value="null" disabled>Select Mount Source...</option>
-                                         <option v-for="s in sources" :key="s.id" :value="s.id">{{s.name}} ({{s.kind}})</option>
-                                     </select>
-                                     <button @click="startScan" class="bg-black text-white px-4 py-2 rounded-md hover:bg-gray-800 transition active:scale-95 font-medium flex justify-center items-center gap-2" :disabled="!selectedSourceId || isScanning">
-                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" v-if="!isScanning"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                                         <svg v-else class="animate-spin w-4 h-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                         {{ isScanning ? 'Scanning...' : 'Scan Root Directory' }}
+                         <div class="w-full">
+                             <div class="border border-border-light rounded-lg p-6 bg-bg-secondary mb-6 max-w-xl">
+                                 <h3 class="text-sm font-semibold mb-2">Add Scan Directory</h3>
+                                 <p class="text-text-secondary mb-4 leading-relaxed text-xs">Select a VFS Source and specify a relative path to add to your music scanner.</p>
+                                 <div class="flex items-end gap-3">
+                                     <div class="flex-1">
+                                         <label class="block text-xs font-medium text-text-secondary mb-1">Source</label>
+                                         <select v-model="selectedSourceId" class="w-full border border-border-light rounded-md px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-accent text-sm">
+                                             <option :value="null" disabled>Select Mount Source...</option>
+                                             <option v-for="s in sources" :key="s.id" :value="s.id">{{s.name}} ({{s.kind}})</option>
+                                         </select>
+                                     </div>
+                                     <div class="flex-1">
+                                         <label class="block text-xs font-medium text-text-secondary mb-1">Relative Path</label>
+                                         <div class="flex items-center gap-2">
+                                             <input v-model="inputPath" type="text" placeholder="/" class="w-full border border-border-light rounded-md px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-accent text-sm" />
+                                             <button @click="openPicker" :disabled="!selectedSourceId" class="bg-gray-100 border border-border-light text-text-primary px-3 py-2 rounded-md hover:bg-gray-200 transition active:scale-95 text-sm font-medium whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">Browse...</button>
+                                         </div>
+                                     </div>
+                                     <button @click="addScanDirectory" class="bg-black text-white px-4 py-2 rounded-md hover:bg-gray-800 transition active:scale-95 text-sm font-medium flex justify-center items-center h-[38px]" :disabled="!selectedSourceId">
+                                         Add
                                      </button>
-                                     <p v-if="scanProgress" class="text-xs text-text-muted mt-2 truncate font-mono">{{scanProgress}}</p>
+                                 </div>
+                             </div>
+
+                             <div class="border border-border-light rounded-lg overflow-hidden bg-white max-w-4xl">
+                                 <table class="w-full text-left border-collapse text-sm">
+                                     <thead>
+                                         <tr class="bg-bg-secondary text-text-muted text-xs uppercase tracking-widest border-b border-border-light">
+                                             <th class="py-3 px-4 font-semibold">Source</th>
+                                             <th class="py-3 px-4 font-semibold">Path</th>
+                                             <th class="py-3 px-4 font-semibold text-right w-48">Actions</th>
+                                         </tr>
+                                     </thead>
+                                     <tbody>
+                                         <tr v-if="scanDirectories.length === 0">
+                                             <td colspan="3" class="py-8 text-center text-text-muted text-xs">No scan directories configured.</td>
+                                         </tr>
+                                         <tr v-for="dir in scanDirectories" :key="dir.id" class="border-b border-border-light last:border-0 hover:bg-gray-50 transition">
+                                             <td class="py-3 px-4 font-medium text-text-primary">{{ getSourceName(dir.source_id) }}</td>
+                                             <td class="py-3 px-4 text-text-secondary font-mono text-xs">{{ dir.path }}</td>
+                                             <td class="py-3 px-4 text-right flex items-center justify-end gap-2">
+                                                 <button @click="deleteScanDirectory(dir.id)" class="text-text-muted hover:text-red-500 transition px-2 py-1 border border-transparent hover:border-red-200 hover:bg-red-50 rounded text-xs" :disabled="isScanning">Delete</button>
+                                                 <button @click="startScan(dir)" class="bg-white border border-border-light text-text-primary hover:bg-gray-50 hover:text-black transition px-3 py-1 rounded text-xs font-medium flex items-center gap-1 shadow-sm" :disabled="isScanning">
+                                                     <svg v-if="scanningId === dir.id" class="animate-spin w-3 h-3 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                                     <svg v-else class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                                                     {{ scanningId === dir.id ? 'Scanning...' : 'Scan' }}
+                                                 </button>
+                                             </td>
+                                         </tr>
+                                     </tbody>
+                                 </table>
+                                 <div v-if="scanProgress" class="bg-bg-secondary border-t border-border-light p-3 text-[10px] text-text-muted font-mono truncate">
+                                     > {{ scanProgress }}
                                  </div>
                              </div>
                          </div>
@@ -75,74 +171,153 @@ window.AppConfig = {
 
                    <!-- Dynamic Views -->
                    <tracks-view v-if="currentView === 'tracks'"></tracks-view>
-                   <albums-view v-if="currentView === 'albums'"></albums-view>
                    <artists-view v-if="currentView === 'artists'"></artists-view>
                 </main>
+                
+                <!-- Footer Stats Placeholder -->
+                <div class="h-12 border-t border-border-light shrink-0 flex items-center px-10 justify-between text-[10px] font-mono tracking-widest text-text-muted">
+                    <div>1248 TRACKS / 98.6 GB / 3D 14H</div>
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-px bg-border-light"></div>
+                        ARCHIVE
+                    </div>
+                </div>
+             </div>
+
+             <!-- Right Context Panel -->
+             <div class="w-72 border-l border-border-light bg-bg-base flex flex-col shrink-0 h-full">
+                <div class="h-[89px] border-b border-border-light flex items-end justify-center gap-6 text-[10px] font-bold tracking-widest uppercase px-6 shrink-0 text-text-muted pb-4">
+                    <div class="text-text-primary border-b-2 border-black pb-1 cursor-pointer">Lyrics</div>
+                    <div class="cursor-not-allowed opacity-50 pb-1">Queue</div>
+                    <div class="cursor-not-allowed opacity-50 pb-1">Info</div>
+                </div>
+                
+                <div class="flex-1 p-8 flex flex-col gap-8 overflow-y-auto">
+                    <!-- Album Art -->
+                    <div class="w-full aspect-square bg-bg-secondary rounded-lg border border-border-light overflow-hidden flex items-center justify-center text-text-muted relative">
+                        <img v-if="currentTrack?.cover_url" :src="currentTrack.cover_url" class="w-full h-full object-cover" />
+                        <svg v-else class="w-12 h-12 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path></svg>
+                    </div>
+                    
+                    <!-- Now Playing Info -->
+                    <div class="flex flex-col">
+                        <div class="text-[10px] font-bold tracking-widest uppercase text-text-muted mb-3 font-mono">Now Playing</div>
+                        <div class="text-2xl font-semibold text-text-primary tracking-tight truncate leading-tight mb-1">{{ currentTrack ? currentTrack.title : 'No Track' }}</div>
+                        <div class="text-xs font-medium text-text-secondary tracking-wide uppercase">{{ currentTrack ? currentTrack.artist_name : 'Unknown Artist' }}</div>
+                        <div class="text-xs text-text-muted italic mt-1.5 truncate">{{ currentTrack ? currentTrack.album_title : 'No Album' }}</div>
+                    </div>
+                    
+                    <!-- Lyrics Placeholder -->
+                    <div class="flex-1 border-t border-border-light pt-6 flex flex-col gap-3.5 text-xs text-text-secondary overflow-y-auto pb-6">
+                        <div class="text-text-primary">We are going on a journey</div>
+                        <div>A journey to experience</div>
+                        <div>We are going on a journey</div>
+                        <div class="italic font-medium text-black">A journey to experience</div>
+                        <div>We are going on a journey</div>
+                    </div>
+                </div>
              </div>
           </div>
 
           <!-- Bottom Player Bar -->
-          <div class="h-24 border-t border-border-light bg-bg-secondary flex items-center px-6 justify-between shadow-[0_-4px_20px_rgba(0,0,0,0.02)] relative z-10">
-             <!-- Left: Track Info -->
-             <div class="flex items-center gap-4 w-1/3 min-w-[200px]">
-                 <div class="w-14 h-14 bg-gray-200 rounded-lg shadow-sm border border-black/5 flex items-center justify-center text-gray-400 overflow-hidden bg-cover bg-center" :style="currentTrack?.cover_url ? 'background-image: url(' + currentTrack.cover_url + ')' : ''">
-                    <svg v-if="!currentTrack?.cover_url" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path></svg>
+          <div class="h-[88px] bg-bg-base flex items-center px-8 justify-between shadow-[0_-4px_24px_rgba(0,0,0,0.02)] border-t border-border-light relative z-10 shrink-0">
+             <!-- Left: Track Info Thumbnail -->
+             <div class="flex items-center gap-4 w-1/4 min-w-[200px]">
+                 <div class="w-12 h-12 bg-bg-secondary rounded border border-border-light flex items-center justify-center text-text-muted overflow-hidden bg-cover bg-center" :style="currentTrack?.cover_url ? 'background-image: url(' + currentTrack.cover_url + ')' : ''">
+                    <svg v-if="!currentTrack?.cover_url" class="w-5 h-5 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path></svg>
                  </div>
                  <div class="flex flex-col truncate">
-                    <div class="font-semibold text-sm text-text-primary tracking-tight truncate">{{ currentTrack ? currentTrack.title : 'No Track Playing' }}</div>
-                    <div class="text-xs text-text-secondary mt-0.5 truncate">{{ currentTrack ? currentTrack.artist_name : 'Unknown Artist' }}</div>
+                    <div class="font-semibold text-sm text-text-primary tracking-tight truncate">{{ currentTrack ? currentTrack.title : 'No Track' }}</div>
+                    <div class="text-[10px] uppercase tracking-wider font-medium text-text-secondary mt-0.5 truncate">{{ currentTrack ? currentTrack.artist_name : 'Unknown Artist' }}</div>
                  </div>
              </div>
              
-             <!-- Center: Controls -->
-             <div class="flex-1 flex flex-col justify-center items-center max-w-2xl px-8">
-                 <div class="flex items-center gap-6 mb-2">
+             <!-- Center: Controls & Thin Progress -->
+             <div class="flex-1 flex items-center justify-center max-w-3xl px-8 gap-8">
+                 <div class="flex items-center gap-6">
                      <button @click="togglePlayMode" class="text-text-muted hover:text-text-primary transition active:scale-95" :class="{'text-accent': playMode !== 'normal'}">
-                        <!-- Shuffle Icon -->
                         <svg v-if="playMode === 'shuffle'" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
-                        <!-- Loop Icon -->
-                        <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-                        <span v-if="playMode === 'loop-one'" class="absolute text-[8px] font-bold mt-1 ml-1">1</span>
+                        <svg v-else class="w-4 h-4 relative" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                        <span v-if="playMode === 'loop-one'" class="absolute -mt-4 ml-3 text-[8px] font-bold">1</span>
                      </button>
                      
-                     <button @click="playPrevious" class="text-text-primary hover:text-black transition active:scale-95"><svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg></button>
+                     <button @click="playPrevious" class="text-text-primary hover:text-black transition active:scale-95"><svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg></button>
                      
-                     <button @click="togglePlay" class="w-10 h-10 flex items-center justify-center rounded-full bg-black text-white hover:bg-gray-800 transition active:scale-95 shadow-md">
-                        <svg v-if="!isPlaying" class="w-5 h-5 ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"></path></svg>
-                        <svg v-else class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6zm8 0h4v16h-4z"></path></svg>
+                     <button @click="togglePlay" class="w-8 h-8 flex items-center justify-center text-text-primary hover:text-black transition active:scale-95">
+                        <svg v-if="!isPlaying" class="w-6 h-6 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"></path></svg>
+                        <svg v-else class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6zm8 0h4v16h-4z"></path></svg>
                      </button>
                      
-                     <button @click="playNext" class="text-text-primary hover:text-black transition active:scale-95"><svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"></path></svg></button>
+                     <button @click="playNext" class="text-text-primary hover:text-black transition active:scale-95"><svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"></path></svg></button>
                      
-                     <button class="text-text-muted hover:text-text-primary transition active:scale-95"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg></button>
+                     <button class="text-text-muted cursor-not-allowed opacity-50"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg></button>
                  </div>
                  
-                 <!-- Progress Bar -->
-                 <div class="w-full flex items-center gap-3">
-                     <span class="text-[10px] text-text-muted font-mono w-10 text-right">{{ formatTime(currentTime) }}</span>
-                     <div class="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden cursor-pointer group" @click="seekByClick">
-                         <div class="h-full bg-black group-hover:bg-accent transition-colors relative pointer-events-none" :style="{ width: progressPercent + '%' }"></div>
+                 <div class="flex-1 flex items-center gap-4">
+                     <span class="text-[9px] text-text-muted font-mono w-8 text-right tabular-nums">{{ formatTime(currentTime) }}</span>
+                     <div class="flex-1 h-[2px] bg-border-light cursor-pointer group relative rounded-full" @click="seekByClick">
+                         <div class="h-full bg-black group-hover:bg-accent transition-colors absolute left-0 pointer-events-none rounded-full" :style="{ width: progressPercent + '%' }"></div>
                      </div>
-                     <span class="text-[10px] text-text-muted font-mono w-10">{{ formatTime(duration) }}</span>
+                     <span class="text-[9px] text-text-muted font-mono w-8 tabular-nums">{{ formatTime(duration) }}</span>
                  </div>
              </div>
              
              <!-- Right: Volume -->
-             <div class="w-1/3 min-w-[200px] flex justify-end items-center gap-4">
-                 <button @click="toggleMute" class="text-text-muted hover:text-text-primary transition">
+             <div class="w-1/4 min-w-[200px] flex justify-end items-center gap-5 text-text-muted">
+                 <button @click="toggleMute" class="hover:text-text-primary transition">
                     <svg v-if="isMuted || volume === 0" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"></path></svg>
                     <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path></svg>
                  </button>
-                 <div class="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden cursor-pointer" @click="setVolumeByClick">
-                     <div class="h-full bg-text-muted pointer-events-none" :style="{ width: (volume * 100) + '%' }"></div>
+                 <div class="w-16 h-[2px] bg-border-light cursor-pointer relative rounded-full" @click="setVolumeByClick">
+                     <div class="h-full bg-text-muted absolute left-0 pointer-events-none rounded-full" :style="{ width: (volume * 100) + '%' }"></div>
                  </div>
+                 <div class="h-3 w-px bg-border-light mx-1"></div>
+                 <button class="cursor-not-allowed opacity-50"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg></button>
+                 <button class="cursor-not-allowed opacity-50"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg></button>
              </div>
+          </div>
+
+          <!-- Folder Picker Modal -->
+          <div v-if="showFolderPicker" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center">
+              <div class="bg-white rounded-xl shadow-2xl w-[600px] max-h-[80vh] flex flex-col overflow-hidden border border-border-light">
+                  <div class="px-6 py-4 border-b border-border-light flex items-center justify-between bg-bg-secondary shrink-0">
+                      <h3 class="font-semibold text-text-primary">Select Directory</h3>
+                      <button @click="cancelPicker" class="text-text-muted hover:text-black transition">
+                          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                      </button>
+                  </div>
+                  <div class="px-6 py-3 border-b border-border-light flex items-center gap-2 bg-gray-50 text-sm shrink-0">
+                      <button @click="navigatePicker('..')" class="p-1 rounded hover:bg-gray-200 text-text-secondary transition" :disabled="currentPickerPath === '/' || currentPickerPath === ''">
+                          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                      </button>
+                      <div class="flex-1 font-mono text-xs text-text-primary truncate px-2">{{ currentPickerPath || '/' }}</div>
+                  </div>
+                  <div class="flex-1 overflow-y-auto p-2 bg-white">
+                      <div v-if="isLoadingPicker" class="flex justify-center items-center h-32 text-text-muted">
+                          <svg class="animate-spin h-6 w-6 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                      </div>
+                      <div v-else-if="pickerItems.length === 0" class="flex justify-center items-center h-32 text-text-muted text-sm">
+                          Empty directory
+                      </div>
+                      <div v-else class="flex flex-col">
+                          <div v-for="item in pickerItems" :key="item.name" @click="navigatePicker(item.name)" class="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 cursor-pointer rounded-md transition">
+                              <svg class="w-5 h-5 text-accent" fill="currentColor" viewBox="0 0 24 24"><path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                              <span class="text-sm text-text-primary truncate">{{ item.name }}</span>
+                          </div>
+                      </div>
+                  </div>
+                  <div class="px-6 py-4 border-t border-border-light bg-bg-secondary flex justify-end gap-3 shrink-0">
+                      <button @click="cancelPicker" class="px-4 py-2 text-sm font-medium text-text-secondary hover:text-text-primary transition">Cancel</button>
+                      <button @click="confirmPicker" class="px-4 py-2 text-sm font-medium bg-black text-white rounded hover:bg-gray-800 transition">Select Current Folder</button>
+                  </div>
+              </div>
           </div>
       </div>
     `,
     components: {
         'tracks-view': window.AppViews.TracksView,
-        'albums-view': window.AppViews.AlbumsView,
         'artists-view': window.AppViews.ArtistsView
     },
     setup() {
@@ -159,8 +334,16 @@ window.AppConfig = {
         const tablesCount = ref(0);
         const sources = ref([]);
         const selectedSourceId = ref(null);
+        const inputPath = ref('/');
+        const scanDirectories = ref([]);
         const isScanning = ref(false);
+        const scanningId = ref(null);
         const scanProgress = ref('');
+
+        const showFolderPicker = ref(false);
+        const currentPickerPath = ref('/');
+        const pickerItems = ref([]);
+        const isLoadingPicker = ref(false);
 
         // Map Player State
         const currentTrack = computed(() => state.currentTrack);
@@ -210,6 +393,86 @@ window.AppConfig = {
             tablesCount.value = tables.length;
         };
 
+        const loadScanDirectories = async () => {
+            try {
+                scanDirectories.value = await window.loomContext.db.query("SELECT * FROM scan_directories ORDER BY id DESC");
+            } catch (e) {
+                console.error("Failed to load scan directories", e);
+            }
+        };
+
+        const getSourceName = (id) => {
+            const s = sources.value.find(s => s.id === id);
+            return s ? `${s.name} (${s.kind})` : `Unknown (${id})`;
+        };
+
+        const addScanDirectory = async () => {
+            if (!selectedSourceId.value) return;
+            const path = inputPath.value || '/';
+            try {
+                await window.loomContext.db.execute("INSERT INTO scan_directories (source_id, path) VALUES (?, ?)", [selectedSourceId.value, path]);
+                inputPath.value = '/';
+                await loadScanDirectories();
+            } catch (e) {
+                console.error("Failed to add scan directory", e);
+            }
+        };
+
+        const deleteScanDirectory = async (id) => {
+            try {
+                await window.loomContext.db.execute("DELETE FROM scan_directories WHERE id = ?", [id]);
+                await loadScanDirectories();
+            } catch (e) {
+                console.error("Failed to delete scan directory", e);
+            }
+        };
+
+        const loadPickerItems = async () => {
+            isLoadingPicker.value = true;
+            try {
+                const items = await window.loomContext.vfs.list(selectedSourceId.value, currentPickerPath.value);
+                // Filter for directories only and sort alphabetically
+                pickerItems.value = items.filter(i => i.is_dir).sort((a, b) => a.name.localeCompare(b.name));
+            } catch (e) {
+                console.error("Failed to list directory", e);
+                pickerItems.value = [];
+            } finally {
+                isLoadingPicker.value = false;
+            }
+        };
+
+        const openPicker = async () => {
+            if (!selectedSourceId.value) return;
+            currentPickerPath.value = inputPath.value || '/';
+            showFolderPicker.value = true;
+            await loadPickerItems();
+        };
+
+        const navigatePicker = async (folderName) => {
+            if (folderName === '..') {
+                if (currentPickerPath.value === '/' || currentPickerPath.value === '') return;
+                const parts = currentPickerPath.value.split('/').filter(Boolean);
+                parts.pop();
+                currentPickerPath.value = parts.length ? '/' + parts.join('/') : '/';
+            } else {
+                if (currentPickerPath.value.endsWith('/')) {
+                    currentPickerPath.value += folderName;
+                } else {
+                    currentPickerPath.value += '/' + folderName;
+                }
+            }
+            await loadPickerItems();
+        };
+
+        const confirmPicker = () => {
+            inputPath.value = currentPickerPath.value;
+            showFolderPicker.value = false;
+        };
+
+        const cancelPicker = () => {
+            showFolderPicker.value = false;
+        };
+
         onMounted(async () => {
             try {
                 await loadStats();
@@ -218,6 +481,18 @@ window.AppConfig = {
                 if(srcs.length > 0) {
                     selectedSourceId.value = srcs[0].id;
                 }
+                
+                // Initialize scan_directories table if running on older DB
+                await window.loomContext.db.execute(`
+                  CREATE TABLE IF NOT EXISTS scan_directories (
+                      id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      source_id INTEGER NOT NULL,
+                      path TEXT NOT NULL DEFAULT '/',
+                      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+                  )
+                `);
+                
+                await loadScanDirectories();
             } catch (e) {
                 console.error("Failed to load initial data", e);
             } finally {
@@ -225,12 +500,13 @@ window.AppConfig = {
             }
         });
 
-        const startScan = async () => {
-            if (!selectedSourceId.value) return;
+        const startScan = async (dir) => {
+            if (isScanning.value) return;
             isScanning.value = true;
+            scanningId.value = dir.id;
             scanProgress.value = 'Starting scan...';
             try {
-                await window.scanDirectory(selectedSourceId.value, '/', (msg) => {
+                await window.scanDirectory(dir.source_id, dir.path, (msg) => {
                     scanProgress.value = msg;
                 });
                 scanProgress.value = 'Scan completed successfully!';
@@ -239,13 +515,19 @@ window.AppConfig = {
                 scanProgress.value = 'Error: ' + e;
             } finally {
                 isScanning.value = false;
+                scanningId.value = null;
+                setTimeout(() => { if (!isScanning.value) scanProgress.value = ''; }, 3000);
                 await loadStats(); // Refresh DB stats
             }
         };
 
         return { 
             currentView, viewTitle,
-            loading, tablesCount, sources, selectedSourceId, isScanning, scanProgress, startScan,
+            loading, tablesCount, sources, selectedSourceId, inputPath, scanDirectories, getSourceName,
+            addScanDirectory, deleteScanDirectory,
+            isScanning, scanningId, scanProgress, startScan,
+            showFolderPicker, currentPickerPath, pickerItems, isLoadingPicker,
+            openPicker, navigatePicker, confirmPicker, cancelPicker,
             currentTrack, isPlaying, currentTime, duration, volume, isMuted, playMode, progressPercent,
             formatTime, togglePlay, toggleMute, togglePlayMode, seekByClick, setVolumeByClick,
             playNext, playPrevious
