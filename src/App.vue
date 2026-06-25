@@ -12,6 +12,39 @@ const showError = async (title: string, err: any) => {
   await message(`${err}`, { title, kind: 'error' });
 };
 
+interface PluginManifest {
+  id: string;
+  name: string;
+  version: string;
+  entry: string;
+  icon?: string;
+}
+const installedPlugins = ref<PluginManifest[]>([]);
+
+const loadPlugins = async () => {
+  try {
+    installedPlugins.value = await invoke<PluginManifest[]>("cmd_get_installed_plugins");
+  } catch (err) {
+    await showError("Failed to load plugins", err);
+  }
+};
+
+const installPlugin = async () => {
+  try {
+    const selected = await openDialog({
+      multiple: false,
+      filters: [{ name: 'Loom Plugin', extensions: ['loom', 'zip'] }],
+      title: '选择插件包'
+    });
+    if (selected !== null) {
+      await invoke("cmd_install_plugin", { zipPath: selected as string });
+      await loadPlugins();
+    }
+  } catch (e) {
+    await showError("Failed to install plugin", e);
+  }
+};
+
 const appWindow = getCurrentWindow();
 
 // 窗口控制逻辑
@@ -328,6 +361,15 @@ const getPreviewUrl = (sourceId: number, vpath: string) => {
   
   return `${baseUrl}/preview/${sourceId}${encodedPath}`;
 };
+
+// 生成跨平台兼容的插件加载 URL (本地沙箱)
+const getPluginUrl = (pluginId: string, entryPath: string) => {
+  const isWindows = navigator.userAgent.includes("Windows");
+  const baseUrl = isWindows ? "http://loom.localhost" : "loom://localhost";
+  const encodedPath = entryPath.split('/').map(segment => encodeURIComponent(segment)).join('/');
+  return `${baseUrl}/plugin/${pluginId}/${encodedPath}`;
+};
+
 // 格式化文件大小
 const formatBytes = (bytes: number | null | undefined) => {
   if (bytes === null || bytes === undefined) return "—";
@@ -718,6 +760,7 @@ async function greet() {
 onMounted(async () => {
   await loadSources();
   await loadBentoStats();
+  await loadPlugins();
   await loadDir(null, "/"); // 默认展示合并大平层
 
   // 挂载 Tauri VFS 后台更新事件监听
@@ -825,56 +868,27 @@ onMounted(async () => {
 
         <!-- 插件面板 -->
         <div class="space-y-1">
-          <div class="text-[9px] font-semibold text-gray-400 tracking-wider uppercase px-3 mb-1.5">插件</div>
+          <div class="text-[9px] font-semibold text-gray-400 tracking-wider uppercase px-3 mb-1.5 flex justify-between items-center">
+            <span>插件</span>
+            <svg @click="installPlugin" class="w-3.5 h-3.5 cursor-pointer hover:text-gray-600 transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+          </div>
           <ul class="space-y-[3px] text-xs font-medium">
             <li 
-              @click="openPlugin('com.loom.music', '/plugins/com.loom.music/index.html')"
+              v-for="plugin in installedPlugins"
+              :key="plugin.id"
+              @click="openPlugin(plugin.id, getPluginUrl(plugin.id, plugin.entry), plugin.name)"
               class="relative px-3 py-2 cursor-pointer flex items-center justify-between rounded-lg transition-all"
-              :class="activePluginId === 'com.loom.music' ? 'bg-white text-text-primary font-semibold shadow-[0_2px_6px_rgba(0,0,0,0.03)] pl-4' : 'text-gray-600 hover:bg-item-hover pl-3'"
+              :class="activePluginId === plugin.id ? 'bg-white text-text-primary font-semibold shadow-[0_2px_6px_rgba(0,0,0,0.03)] pl-4' : 'text-gray-600 hover:bg-item-hover pl-3'"
             >
-              <span v-if="activePluginId === 'com.loom.music'" class="absolute left-1 top-2.5 bottom-2.5 w-1 bg-accent rounded-full"></span>
-              <div class="flex items-center gap-2.5">
-                <svg class="w-4 h-4 text-pink-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
-                </svg>
-                <span>音乐播放器</span>
-              </div>
-            </li>
-            <li class="px-3 py-2 text-gray-600 hover:bg-item-hover cursor-pointer flex items-center justify-between rounded-lg transition-colors">
-              <div class="flex items-center gap-2.5">
-                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-                </svg>
-                <span>阅读器</span>
-              </div>
-              <span class="h-1 w-1 rounded-full bg-gray-400"></span>
-            </li>
-            <li class="px-3 py-2 text-gray-600 hover:bg-item-hover cursor-pointer flex items-center justify-between rounded-lg transition-colors">
-              <div class="flex items-center gap-2.5">
-                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-                </svg>
-                <span>笔记</span>
-              </div>
-              <span class="h-1 w-1 rounded-full bg-gray-400"></span>
-            </li>
-            <li class="px-3 py-2 text-gray-600 hover:bg-item-hover cursor-pointer flex items-center gap-2.5 rounded-lg transition-colors">
-              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
-              </svg>
-              <span>插件市场</span>
-            </li>
-            <li 
-              @click="openPlugin('com.loom.hello', '/plugins/com.loom.hello/index.html')"
-              class="relative px-3 py-2 cursor-pointer flex items-center justify-between rounded-lg transition-all"
-              :class="activePluginId === 'com.loom.hello' ? 'bg-white text-text-primary font-semibold shadow-[0_2px_6px_rgba(0,0,0,0.03)] pl-4' : 'text-gray-600 hover:bg-item-hover pl-3'"
-            >
-              <span v-if="activePluginId === 'com.loom.hello'" class="absolute left-1 top-2.5 bottom-2.5 w-1 bg-accent rounded-full"></span>
+              <span v-if="activePluginId === plugin.id" class="absolute left-1 top-2.5 bottom-2.5 w-1 bg-accent rounded-full"></span>
               <div class="flex items-center gap-2.5">
                 <svg class="w-4 h-4 text-purple-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
                 </svg>
-                <span>Hello Sandbox</span>
+                <span>{{ plugin.name }}</span>
               </div>
             </li>
           </ul>

@@ -169,4 +169,80 @@ impl PluginManager {
 
         Ok(())
     }
+
+    pub async fn get_installed_plugins(&self) -> Result<Vec<PluginManifest>, String> {
+        let plugins_dir = self.base_dir.join("plugins");
+            
+        let mut result = Vec::new();
+        if !plugins_dir.exists() {
+            return Ok(result);
+        }
+        
+        let mut entries = tokio::fs::read_dir(plugins_dir).await.map_err(|e| e.to_string())?;
+        while let Ok(Some(entry)) = entries.next_entry().await {
+            let path = entry.path();
+            if path.is_dir() {
+                let manifest_path = path.join("manifest.json");
+                if manifest_path.exists() {
+                    if let Ok(manifest_data) = tokio::fs::read_to_string(&manifest_path).await {
+                        if let Ok(manifest) = serde_json::from_str::<PluginManifest>(&manifest_data) {
+                            result.push(manifest);
+                        }
+                    }
+                }
+            }
+        }
+        Ok(result)
+    }
+
+    pub async fn install_plugin(&self, zip_path: &str) -> Result<String, String> {
+        let plugins_dir = self.base_dir.join("plugins");
+            
+        let file = std::fs::File::open(zip_path).map_err(|e| e.to_string())?;
+        let mut archive = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
+        
+        let mut plugin_id = String::new();
+        for i in 0..archive.len() {
+            let mut file = archive.by_index(i).map_err(|e| e.to_string())?;
+            if file.name() == "manifest.json" {
+                let mut content = String::new();
+                std::io::Read::read_to_string(&mut file, &mut content).map_err(|e| e.to_string())?;
+                if let Ok(manifest) = serde_json::from_str::<PluginManifest>(&content) {
+                    plugin_id = manifest.id.clone();
+                }
+                break;
+            }
+        }
+        
+        if plugin_id.is_empty() {
+            return Err("Invalid plugin package: missing manifest.json with id".to_string());
+        }
+        
+        let target_dir = plugins_dir.join(&plugin_id);
+        if !target_dir.exists() {
+            std::fs::create_dir_all(&target_dir).map_err(|e| e.to_string())?;
+        }
+        
+        for i in 0..archive.len() {
+            let mut file = archive.by_index(i).map_err(|e| e.to_string())?;
+            let outpath = match file.enclosed_name() {
+                Some(path) => target_dir.join(path),
+                None => continue,
+            };
+            
+            if file.is_dir() {
+                std::fs::create_dir_all(&outpath).map_err(|e| e.to_string())?;
+            } else {
+                if let Some(p) = outpath.parent() {
+                    if !p.exists() {
+                        std::fs::create_dir_all(&p).map_err(|e| e.to_string())?;
+                    }
+                }
+                let mut outfile = std::fs::File::create(&outpath).map_err(|e| e.to_string())?;
+                std::io::copy(&mut file, &mut outfile).map_err(|e| e.to_string())?;
+            }
+        }
+        
+        Ok(plugin_id)
+    }
 }

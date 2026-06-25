@@ -512,6 +512,21 @@ async fn cmd_plugin_fs_write(
     Ok(format!("plugin_data/{}/{}", plugin_id, path))
 }
 
+#[tauri::command]
+async fn cmd_get_installed_plugins(
+    plugin_mgr: State<'_, PluginManager>,
+) -> Result<Vec<crate::plugin_mgr::PluginManifest>, String> {
+    plugin_mgr.get_installed_plugins().await
+}
+
+#[tauri::command]
+async fn cmd_install_plugin(
+    plugin_mgr: State<'_, PluginManager>,
+    zip_path: String,
+) -> Result<String, String> {
+    plugin_mgr.install_plugin(&zip_path).await
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let vfs_manager = VfsManager::new();
@@ -566,6 +581,64 @@ pub fn run() {
 
             let uri_path = request.uri().path();
             
+            // ==========================================
+            // 路由：/plugin/ (加载插件静态UI资源)
+            // ==========================================
+            if let Some(tail) = uri_path.strip_prefix("/plugin/") {
+                if tail.contains("..") {
+                    return tauri::http::Response::builder()
+                        .status(tauri::http::StatusCode::BAD_REQUEST)
+                        .body("Bad Request".into())
+                        .unwrap();
+                }
+
+                let parts: Vec<&str> = tail.splitn(2, '/').collect();
+                if parts.len() < 2 {
+                    return tauri::http::Response::builder()
+                        .status(tauri::http::StatusCode::BAD_REQUEST)
+                        .body("Malformed plugin path".into())
+                        .unwrap();
+                }
+
+                let plugin_id = parts[0];
+                let file_path = percent_encoding::percent_decode_str(parts[1]).decode_utf8_lossy();
+                let plugin_mgr = app_handle.app_handle().state::<PluginManager>();
+                let plugin_dir = plugin_mgr.get_plugin_dir(plugin_id);
+                let target_path = plugin_dir.join(file_path.as_ref());
+
+                let read_res = std::fs::read(&target_path).map_err(|e| e.to_string());
+                return match read_res {
+                    Ok(bytes) => {
+                        let mut response_builder = tauri::http::Response::builder();
+                        let ext = file_path.split('.').last().unwrap_or("").to_lowercase();
+                        let mime_type = match ext.as_str() {
+                            "html" => "text/html; charset=utf-8",
+                            "css" => "text/css; charset=utf-8",
+                            "js" => "application/javascript; charset=utf-8",
+                            "svg" => "image/svg+xml",
+                            "json" => "application/json; charset=utf-8",
+                            "jpg" | "jpeg" => "image/jpeg",
+                            "png" => "image/png",
+                            "gif" => "image/gif",
+                            "webp" => "image/webp",
+                            _ => "application/octet-stream",
+                        };
+                        response_builder.header("content-type", mime_type)
+                            .header("access-control-allow-origin", "*")
+                            .header("content-length", bytes.len().to_string())
+                            .status(tauri::http::StatusCode::OK)
+                            .body(bytes)
+                            .unwrap()
+                    }
+                    Err(e) => {
+                         tauri::http::Response::builder()
+                            .status(tauri::http::StatusCode::NOT_FOUND)
+                            .body(e.into_bytes())
+                            .unwrap()
+                    }
+                };
+            }
+
             // ==========================================
             // 路由：/plugin_data/
             // ==========================================
@@ -774,7 +847,9 @@ pub fn run() {
             cmd_trigger_scan,
             cmd_file_delete,
             cmd_file_rename,
-            cmd_file_mkdir
+            cmd_file_mkdir,
+            cmd_get_installed_plugins,
+            cmd_install_plugin
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
