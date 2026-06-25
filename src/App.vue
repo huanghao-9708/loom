@@ -5,6 +5,8 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open as openDialog, message } from '@tauri-apps/plugin-dialog';
 import { listen } from '@tauri-apps/api/event';
 import PluginHost from './components/PluginHost.vue';
+import Marketplace from './components/Marketplace.vue';
+import PluginDetailModal from './components/PluginDetailModal.vue';
 
 // 统一错误处理弹窗助手
 const showError = async (title: string, err: any) => {
@@ -42,6 +44,108 @@ const installPlugin = async () => {
     }
   } catch (e) {
     await showError("Failed to install plugin", e);
+  }
+};
+
+// ==========================================
+// 插件卸载能力 (Sprint 0)
+// ==========================================
+const uninstallTarget = ref<PluginManifest | null>(null); // 待卸载确认的插件
+const uninstallPurgeData = ref<boolean>(false); // 是否同时删除用户数据
+const uninstallDiskUsage = ref<number>(0); // 即将释放的空间
+const uninstalling = ref<boolean>(false);
+
+// 拉取磁盘占用并打开卸载确认弹窗
+const requestUninstall = async (plugin: PluginManifest) => {
+  try {
+    uninstallDiskUsage.value = await invoke<number>("cmd_get_plugin_disk_usage", {
+      pluginId: plugin.id
+    });
+  } catch (e) {
+    uninstallDiskUsage.value = 0;
+  }
+  uninstallPurgeData.value = false;
+  uninstallTarget.value = plugin;
+};
+
+const confirmUninstallPlugin = async () => {
+  if (!uninstallTarget.value || uninstalling.value) return;
+  uninstalling.value = true;
+  try {
+    await invoke("cmd_uninstall_plugin", {
+      pluginId: uninstallTarget.value.id,
+      purgeData: uninstallPurgeData.value
+    });
+    // 成功后会由 plugin-uninstalled 事件驱动 UI 刷新，此处先关闭弹窗
+    uninstallTarget.value = null;
+  } catch (e) {
+    await showError("卸载插件失败", e);
+  } finally {
+    uninstalling.value = false;
+  }
+};
+
+// ==========================================
+// 市场与更新检测状态 (Sprint 2/3)
+// ==========================================
+interface UpdateInfo {
+  id: string;
+  currentVersion: string;
+  latestVersion: string;
+  description?: string;
+  downloadUrl: string;
+  sha256: string;
+}
+const availableUpdates = ref<UpdateInfo[]>([]); // 检测到的可用更新列表
+const marketDetailEntry = ref<any>(null);        // 详情弹窗当前插件
+const marketDetailProgress = ref<number | undefined>(undefined);
+
+const checkForUpdates = async () => {
+  try {
+    availableUpdates.value = await invoke<UpdateInfo[]>('cmd_check_updates');
+  } catch (_) {
+    // 静默失败：离线或 Registry 不可达时不打扰用户
+    availableUpdates.value = [];
+  }
+};
+
+// 侧边栏更新红点判断
+const pluginHasUpdate = (pluginId: string) => {
+  return availableUpdates.value.some(u => u.id === pluginId);
+};
+
+// 市场详情弹窗处理
+const onMarketDetail = (entry: any) => {
+  marketDetailEntry.value = entry;
+};
+
+const onMarketInstall = async (entry: any) => {
+  try {
+    marketDetailProgress.value = 0;
+    await invoke('cmd_market_install', { entry });
+    await loadPlugins();
+    await checkForUpdates();
+    marketDetailEntry.value = null;
+  } catch (e: any) {
+    console.error('Market install failed:', e);
+    await showError('安装插件失败', e);
+  } finally {
+    marketDetailProgress.value = undefined;
+  }
+};
+
+const onMarketUpdate = async (entry: any) => {
+  try {
+    marketDetailProgress.value = 0;
+    await invoke('cmd_market_update', { entry });
+    await loadPlugins();
+    await checkForUpdates();
+    marketDetailEntry.value = null;
+  } catch (e: any) {
+    console.error('Market update failed:', e);
+    await showError('更新插件失败', e);
+  } finally {
+    marketDetailProgress.value = undefined;
   }
 };
 
@@ -119,7 +223,7 @@ const isSearching = ref<boolean>(false);
 // ==========================================
 // 多标签页状态 (Multi-Tab)
 // ==========================================
-type TabType = 'home' | 'files' | 'plugin';
+type TabType = 'home' | 'files' | 'plugin' | 'marketplace';
 interface Tab {
   id: string;          
   type: TabType;
@@ -151,8 +255,20 @@ const setActiveTab = (id: string) => {
     } else if (tab.type === 'home') {
       activePluginId.value = null;
       currentSourceId.value = null;
+    } else if (tab.type === 'marketplace') {
+      activePluginId.value = null;
+      currentSourceId.value = null;
     }
   }
+};
+
+const openMarketplace = () => {
+  const tabId = 'tab-marketplace';
+  const existingTab = tabs.value.find(t => t.id === tabId);
+  if (!existingTab) {
+    tabs.value.push({ id: tabId, type: 'marketplace', title: '发现' });
+  }
+  setActiveTab(tabId);
 };
 
 const closeTab = (id: string, e?: Event) => {
@@ -264,6 +380,10 @@ const closeContextMenu = () => {
 };
 
 let unlistenVfsUpdate: (() => void) | null = null;
+let unlistenPluginUninstalled: (() => void) | null = null;
+let unlistenPluginUpdated: (() => void) | null = null;
+let unlistenPluginInstalled: (() => void) | null = null;
+let unlistenDownloadProgress: (() => void) | null = null;
 let globalObserver: IntersectionObserver | null = null;
 
 onMounted(() => {
@@ -272,6 +392,10 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener("click", closeContextMenu);
   if (unlistenVfsUpdate) unlistenVfsUpdate();
+  if (unlistenPluginUninstalled) unlistenPluginUninstalled();
+  if (unlistenPluginUpdated) unlistenPluginUpdated();
+  if (unlistenPluginInstalled) unlistenPluginInstalled();
+  if (unlistenDownloadProgress) unlistenDownloadProgress();
   if (globalObserver) globalObserver.disconnect();
 });
 
@@ -774,6 +898,64 @@ onMounted(async () => {
     await loadBentoStats();
   });
 
+  // 监听插件卸载事件：移除侧边栏入口、关闭可能正打开的插件 Tab、刷新列表
+  unlistenPluginUninstalled = await listen('plugin-uninstalled', async (event: any) => {
+    const { id } = event.payload;
+    // 关闭该插件对应的 Tab（若正处于激活态，setActiveTab 会切回相邻 Tab）
+    const pluginTabId = `tab-plugin-${id}`;
+    const tab = tabs.value.find(t => t.id === pluginTabId);
+    if (tab) {
+      closeTab(pluginTabId);
+    }
+    // 若被卸载的插件当前处于激活态，清空激活指针
+    if (activePluginId.value === id) {
+      activePluginId.value = null;
+      activePluginEntry.value = "";
+    }
+    await loadPlugins();
+  });
+
+  // 监听插件更新事件：刷新列表并热重载 iframe（通过关闭再打开 Tab 强制刷新）
+  unlistenPluginUpdated = await listen('plugin-updated', async (event: any) => {
+    const { id } = event.payload;
+    await loadPlugins();
+    // 若该插件当前处于激活态，强制重新加载（关闭再打开 Tab）
+    if (activePluginId.value === id) {
+      const tab = tabs.value.find(t => t.id === `tab-plugin-${id}`);
+      if (tab && tab.pluginEntry) {
+        activePluginId.value = null;
+        activePluginEntry.value = "";
+        // 延迟一帧重新激活以触发 iframe 重建
+        await new Promise(r => setTimeout(r, 50));
+        activePluginId.value = id;
+        activePluginEntry.value = tab.pluginEntry;
+      }
+    }
+  });
+
+  // 监听插件市场安装完成事件：刷新列表并不管来源地更新侧边栏
+  unlistenPluginInstalled = await listen('plugin-installed', async (_event: any) => {
+    await loadPlugins();
+    await checkForUpdates();
+  });
+
+  // 启动时静默检测可用更新（不阻塞 UI）
+  checkForUpdates();
+
+  // 监听下载进度（传递给详情弹窗）
+  unlistenDownloadProgress = await listen('download-progress', (event: any) => {
+    const { id, received, total, verified } = event.payload;
+    if (marketDetailEntry.value?.id === id) {
+      if (total > 0 && !verified) {
+        marketDetailProgress.value = Math.round((received / total) * 100);
+      } else if (verified) {
+        marketDetailProgress.value = 100;
+      } else {
+        marketDetailProgress.value = 0;
+      }
+    }
+  });
+
   // 挂载 IntersectionObserver 实现虚拟滚动
   globalObserver = new IntersectionObserver((entries) => {
     if (entries[0].isIntersecting) {
@@ -862,6 +1044,19 @@ onMounted(async () => {
               </svg>
               <span>标签</span>
             </li>
+            <li 
+              @click="openMarketplace"
+              class="relative cursor-pointer flex items-center gap-2.5 rounded-lg transition-all"
+              :class="activeTabId === 'tab-marketplace' ? 'bg-white text-text-primary font-semibold shadow-[0_2px_6px_rgba(0,0,0,0.03)] pl-4' : 'text-gray-600 hover:bg-item-hover pl-3'"
+            >
+              <span v-if="activeTabId === 'tab-marketplace'" class="absolute left-1 top-2.5 bottom-2.5 w-1 bg-accent rounded-full"></span>
+              <div class="flex items-center gap-2.5 py-2">
+                <svg class="w-4 h-4 text-purple-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <span>发现</span>
+              </div>
+            </li>
           </ul>
         </div>
 
@@ -885,9 +1080,16 @@ onMounted(async () => {
             >
               <span v-if="activePluginId === plugin.id" class="absolute left-1 top-2.5 bottom-2.5 w-1 bg-accent rounded-full"></span>
               <div class="flex items-center gap-2.5">
-                <svg class="w-4 h-4 text-purple-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
-                </svg>
+                <div class="relative">
+                  <svg class="w-4 h-4 text-purple-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
+                  </svg>
+                  <span
+                    v-if="pluginHasUpdate(plugin.id)"
+                    class="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-red-500 rounded-full"
+                    title="有更新"
+                  ></span>
+                </div>
                 <span>{{ plugin.name }}</span>
               </div>
             </li>
@@ -1014,6 +1216,11 @@ onMounted(async () => {
         <PluginHost v-if="tab.type === 'plugin' && tab.pluginId" :pluginId="tab.pluginId" :entryUrl="tab.pluginEntry!" />
       </main>
     </template>
+
+    <!-- Marketplace Tab -->
+    <main v-show="activeTabId === 'tab-marketplace'" class="flex-1 flex flex-col min-w-0 bg-white">
+      <Marketplace @detail="onMarketDetail" />
+    </main>
 
     <!-- Native Files/Home View -->
     <main v-show="activeTab?.type === 'files' || activeTab?.type === 'home'" class="flex-1 flex flex-col min-w-0 bg-bg-surface p-6.5 pr-2.5 pt-3">
@@ -1638,6 +1845,46 @@ onMounted(async () => {
           </div>
         </div>
 
+        <!-- 已安装插件管理 -->
+        <div class="space-y-2 text-xs">
+          <div class="flex items-center justify-between mb-1">
+            <div class="text-[9px] font-bold text-gray-400 uppercase">插件管理</div>
+            <button
+              @click="installPlugin"
+              class="text-[10px] text-accent hover:text-orange-600 font-semibold cursor-pointer flex items-center gap-1"
+            >
+              <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              本地安装
+            </button>
+          </div>
+          <div class="border border-border-light rounded-lg divide-y divide-border-light max-h-44 overflow-y-auto no-scrollbar">
+            <div
+              v-for="plugin in installedPlugins"
+              :key="plugin.id"
+              class="px-3 py-2.5 flex items-center justify-between hover:bg-item-hover"
+            >
+              <div class="flex flex-col gap-0.5 min-w-0">
+                <div class="flex items-center gap-2">
+                  <span class="font-medium text-text-primary truncate">{{ plugin.name }}</span>
+                  <span class="px-1.5 py-0.5 rounded text-[9px] bg-bg-base text-gray-500 font-mono">v{{ plugin.version }}</span>
+                </div>
+                <span class="text-[10px] text-gray-400 truncate font-mono">{{ plugin.id }}</span>
+              </div>
+              <button
+                @click="requestUninstall(plugin)"
+                class="text-red-500 hover:text-red-700 font-medium cursor-pointer ml-2 flex-shrink-0"
+              >
+                卸载
+              </button>
+            </div>
+            <div v-if="installedPlugins.length === 0" class="p-3 text-center text-gray-400 italic text-[11px]">
+              暂无已安装的插件
+            </div>
+          </div>
+        </div>
+
         <!-- Tauri Command 诊断调试 -->
         <div class="border-t border-border-light pt-4 space-y-2 text-xs">
           <div class="text-[9px] font-bold text-gray-400 uppercase">Tauri Core 诊断测试 (Greet)</div>
@@ -1709,6 +1956,82 @@ onMounted(async () => {
       </div>
     </div>
     </div>
+
+    <!-- ========================================== -->
+    <!-- 插件卸载确认弹窗 (Sprint 0) -->
+    <!-- ========================================== -->
+    <div v-if="uninstallTarget" class="fixed inset-0 bg-text-primary/30 backdrop-blur-[1px] z-50 flex items-center justify-center" @click.self="!uninstalling && (uninstallTarget = null)">
+      <div class="bg-bg-surface border border-border-light w-[420px] p-6.5 rounded-lg space-y-5 shadow-2xl">
+        <div class="flex items-center gap-2.5 border-b border-border-light pb-2">
+          <svg class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          <div class="text-[12px] font-bold text-gray-800 tracking-wider">
+            卸载插件「{{ uninstallTarget.name }}」？
+          </div>
+        </div>
+
+        <div class="space-y-3 text-xs text-gray-500 leading-relaxed">
+          <p>
+            将移除该插件的全部程序文件，<span class="font-semibold text-text-primary">预计释放 {{ formatBytes(uninstallDiskUsage) }}</span> 磁盘空间。
+          </p>
+
+          <!-- 数据保留选项 -->
+          <label class="flex items-start gap-2.5 p-2.5 bg-gray-50 border border-gray-100 rounded cursor-pointer hover:bg-gray-100/60 transition-colors">
+            <input
+              v-model="uninstallPurgeData"
+              type="checkbox"
+              class="mt-0.5 accent-red-500"
+            />
+            <div class="flex flex-col gap-0.5">
+              <span class="text-text-primary font-medium">同时删除插件产生的数据</span>
+              <span class="text-[10px] text-gray-400 leading-relaxed">
+                勾选后将彻底清除该插件的独立数据库（如音乐库索引等），无法恢复。不勾选则数据暂存回收站，重装时可自动还原。
+              </span>
+            </div>
+          </label>
+
+          <div class="bg-gray-50 border border-gray-100 rounded p-2.5 text-[10px] text-gray-400">
+            <span class="font-mono">{{ uninstallTarget.id }}</span> · v{{ uninstallTarget.version }}
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-3 pt-2">
+          <button
+            @click="uninstallTarget = null"
+            :disabled="uninstalling"
+            class="px-4 py-2 border border-border-light hover:bg-item-hover text-gray-600 rounded-lg text-xs font-semibold cursor-pointer transition-colors disabled:opacity-50"
+          >
+            取消
+          </button>
+          <button
+            @click="confirmUninstallPlugin"
+            :disabled="uninstalling"
+            class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-semibold cursor-pointer transition-colors shadow-sm disabled:opacity-60 flex items-center gap-2"
+          >
+            <svg v-if="uninstalling" class="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            {{ uninstalling ? '卸载中...' : (uninstallPurgeData ? '彻底卸载' : '卸载') }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 插件商城详情弹窗 (Sprint 3) -->
+    <PluginDetailModal
+      v-if="marketDetailEntry"
+      :entry="marketDetailEntry"
+      :installedVersion="
+        installedPlugins.find(p => p.id === marketDetailEntry.id)?.version
+      "
+      :updateAvailable="pluginHasUpdate(marketDetailEntry.id)"
+      :progress="marketDetailProgress"
+      @close="marketDetailEntry = null"
+      @install="onMarketInstall"
+      @update="onMarketUpdate"
+    />
 
     <!-- ========================================== -->
     <!-- 7. 右键上下文菜单 (Context Menu) -->

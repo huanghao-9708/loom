@@ -2,6 +2,7 @@ pub mod db;
 pub mod scanner;
 pub mod vfs;
 pub mod plugin_mgr;
+pub mod market;
 
 use crate::db::{BentoStats, DbManager, FileRecord, SourceRecord};
 use crate::vfs::VfsSource;
@@ -527,6 +528,141 @@ async fn cmd_install_plugin(
     plugin_mgr.install_plugin(&zip_path).await
 }
 
+#[tauri::command]
+async fn cmd_uninstall_plugin(
+    app: tauri::AppHandle,
+    plugin_mgr: State<'_, PluginManager>,
+    plugin_id: String,
+    purge_data: bool,
+) -> Result<u64, String> {
+    let freed = plugin_mgr
+        .uninstall_plugin(&plugin_id, purge_data)
+        .await?;
+
+    // 广播卸载事件，前端据此移除侧边栏入口并卸载可能正在运行的 iframe
+    let _ = app.emit(
+        "plugin-uninstalled",
+        serde_json::json!({ "id": plugin_id, "freedBytes": freed, "purgedData": purge_data }),
+    );
+
+    Ok(freed)
+}
+
+#[tauri::command]
+async fn cmd_get_plugin_disk_usage(
+    plugin_mgr: State<'_, PluginManager>,
+    plugin_id: String,
+) -> Result<u64, String> {
+    plugin_mgr.get_disk_usage(&plugin_id).await
+}
+
+// ==========================================
+// 在线插件市场命令 (Sprint 1)
+// ==========================================
+
+/// 辅助函数：在 command 中获取宿主数据目录（即 base_dir）
+fn app_data_dir_of(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    use tauri::Manager;
+    app.path()
+        .app_local_data_dir()
+        .map_err(|e| format!("定位数据目录失败：{}", e))
+}
+
+/// 拉取 Registry 总索引（在线优先，离线回退本地缓存）
+#[tauri::command]
+async fn cmd_fetch_registry(
+    app: tauri::AppHandle,
+) -> Result<crate::market::RegistryIndex, String> {
+    let base_dir = app_data_dir_of(&app)?;
+    crate::market::fetch_registry(&base_dir).await
+}
+
+/// 在线安装：下载 → SHA-256 校验 → 复用解压引擎安装 → 清理临时文件。
+/// 这是市场「获取」按钮的单一入口，对外屏蔽下载细节。
+#[tauri::command]
+async fn cmd_market_install(
+    app: tauri::AppHandle,
+    plugin_mgr: State<'_, PluginManager>,
+    entry: crate::market::RegistryEntry,
+) -> Result<String, String> {
+    let base_dir = app_data_dir_of(&app)?;
+
+    // 1. 流式下载 + SHA-256 校验
+    let tmp_path = crate::market::download_with_progress(
+        &app,
+        &base_dir,
+        &entry.id,
+        &entry.download_url,
+        &entry.sha256,
+    )
+    .await?;
+
+    // 2. 复用既有解压安装引擎（内含重装数据还原逻辑）
+    let plugin_id = plugin_mgr
+        .install_plugin(tmp_path.to_string_lossy().as_ref())
+        .await?;
+
+    // 3. 清理临时下载文件
+    let _ = tokio::fs::remove_file(&tmp_path).await;
+
+    // 4. 广播安装完成事件
+    let _ = app.emit(
+        "plugin-installed",
+        serde_json::json!({ "id": plugin_id, "version": entry.version, "source": "market" }),
+    );
+
+    Ok(plugin_id)
+}
+
+/// 检测可用更新：拉取 Registry，与本地已安装插件版本逐一比对。
+#[tauri::command]
+async fn cmd_check_updates(
+    app: tauri::AppHandle,
+    plugin_mgr: State<'_, PluginManager>,
+) -> Result<Vec<crate::market::UpdateInfo>, String> {
+    let base_dir = app_data_dir_of(&app)?;
+    let registry = crate::market::fetch_registry(&base_dir).await?;
+    let installed = plugin_mgr.get_installed_plugins().await?;
+    Ok(crate::market::check_updates(&registry, &installed))
+}
+
+/// 在线更新：下载新版 → SHA-256 校验 → 备份旧版 → 解压新版 → 迁移数据 → 清理备份。
+/// 失败则自动回滚到旧版本。
+#[tauri::command]
+async fn cmd_market_update(
+    app: tauri::AppHandle,
+    plugin_mgr: State<'_, PluginManager>,
+    entry: crate::market::RegistryEntry,
+) -> Result<String, String> {
+    let base_dir = app_data_dir_of(&app)?;
+
+    // 1. 流式下载 + SHA-256 校验
+    let tmp_path = crate::market::download_with_progress(
+        &app,
+        &base_dir,
+        &entry.id,
+        &entry.download_url,
+        &entry.sha256,
+    )
+    .await?;
+
+    // 2. 调用 update_plugin（含备份→解压→迁移→回滚逻辑）
+    let plugin_id = plugin_mgr
+        .update_plugin(tmp_path.to_string_lossy().as_ref())
+        .await?;
+
+    // 3. 清理临时下载文件
+    let _ = tokio::fs::remove_file(&tmp_path).await;
+
+    // 4. 广播更新完成事件（前端据此热重载 iframe）
+    let _ = app.emit(
+        "plugin-updated",
+        serde_json::json!({ "id": plugin_id, "version": entry.version }),
+    );
+
+    Ok(plugin_id)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let vfs_manager = VfsManager::new();
@@ -849,7 +985,13 @@ pub fn run() {
             cmd_file_rename,
             cmd_file_mkdir,
             cmd_get_installed_plugins,
-            cmd_install_plugin
+            cmd_install_plugin,
+            cmd_uninstall_plugin,
+            cmd_get_plugin_disk_usage,
+            cmd_fetch_registry,
+            cmd_market_install,
+            cmd_check_updates,
+            cmd_market_update
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,0 +1,59 @@
+name: Validate Registry
+
+on:
+  pull_request:
+    paths:
+      - 'plugins.json'
+      - 'plugins/**'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install ajv (JSON Schema validator)
+        run: npm install -g ajv-cli@5.0.0
+
+      - name: Validate plugins.json against schema
+        run: |
+          ajv validate -s plugins.schema.json \
+            -d plugins.json \
+            --strict=false \
+            --spec=draft07
+          echo "✅ plugins.json 校验通过"
+
+      - name: Validate each plugin detail file
+        run: |
+          shopt -s nullglob
+          files=(plugins/*.json)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "ℹ️  无详情文件需要校验"
+            exit 0
+          fi
+          for f in "${files[@]}"; do
+            echo "校验 $f"
+            node -e "JSON.parse(require('fs').readFileSync('$f','utf8'))" || { echo "❌ $f 不是合法 JSON"; exit 1; }
+          done
+          echo "✅ 所有详情文件 JSON 合法"
+
+      - name: Check required fields (sha256 & downloadUrl non-empty)
+        run: |
+          node -e '
+            const data = require("./plugins.json");
+            const re = /^e3b0c44|0{64}|^$/;
+            let errors = [];
+            for (const p of data.plugins) {
+              if (!p.id) errors.push("缺少 id");
+              if (!p.sha256 || re.test(p.sha256)) errors.push(p.id + ": sha256 为空或占位符，必须填真实校验和");
+              if (!p.downloadUrl) errors.push(p.id + ": 缺少 downloadUrl");
+              if (!p.version || !/^\d+\.\d+\.\d+$/.test(p.version)) errors.push(p.id + ": version 非语义化版本");
+            }
+            if (errors.length) { console.error("❌\n" + errors.join("\n")); process.exit(1); }
+            console.log("✅ 必填字段检查通过，共 " + data.plugins.length + " 个插件");
+          '
