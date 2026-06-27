@@ -239,6 +239,9 @@ const tabs = ref<Tab[]>([
 ]);
 const activeTabId = ref<string>('tab-files');
 
+// 插件 iframe 热重载 key：递增后触发 PluginHost 重建（key 变化 = Vue 卸载旧组件 + 挂载新组件）
+const reloadKey = ref<Record<string, number>>({});
+
 const activeTab = computed(() => tabs.value.find(t => t.id === activeTabId.value));
 
 const setActiveTab = (id: string) => {
@@ -283,6 +286,12 @@ const closeTab = (id: string, e?: Event) => {
       activeTabId.value = '';
     }
   }
+};
+
+// 递增指定插件 Tab 的 reloadKey，触发 PluginHost 组件重建（iframe 重新加载）
+const reloadPluginIframe = (pluginId: string) => {
+  const tabId = `tab-plugin-${pluginId}`;
+  reloadKey.value[tabId] = (reloadKey.value[tabId] || 0) + 1;
 };
 
 // 插件沙箱状态 (保留用于兼容原有逻辑)
@@ -382,6 +391,7 @@ const closeContextMenu = () => {
 let unlistenVfsUpdate: (() => void) | null = null;
 let unlistenPluginUninstalled: (() => void) | null = null;
 let unlistenPluginUpdated: (() => void) | null = null;
+let unlistenPluginDevReload: (() => void) | null = null;
 let unlistenPluginInstalled: (() => void) | null = null;
 let unlistenDownloadProgress: (() => void) | null = null;
 let globalObserver: IntersectionObserver | null = null;
@@ -394,6 +404,7 @@ onUnmounted(() => {
   if (unlistenVfsUpdate) unlistenVfsUpdate();
   if (unlistenPluginUninstalled) unlistenPluginUninstalled();
   if (unlistenPluginUpdated) unlistenPluginUpdated();
+  if (unlistenPluginDevReload) unlistenPluginDevReload();
   if (unlistenPluginInstalled) unlistenPluginInstalled();
   if (unlistenDownloadProgress) unlistenDownloadProgress();
   if (globalObserver) globalObserver.disconnect();
@@ -915,20 +926,19 @@ onMounted(async () => {
     await loadPlugins();
   });
 
-  // 监听插件更新事件：刷新列表并热重载 iframe（通过关闭再打开 Tab 强制刷新）
+  // 监听插件更新事件：刷新列表并热重载 iframe（递增 reloadKey 强制重建）
   unlistenPluginUpdated = await listen('plugin-updated', async (event: any) => {
     const { id } = event.payload;
     await loadPlugins();
-    // 若该插件当前处于激活态，强制重新加载（关闭再打开 Tab）
-    if (activePluginId.value === id) {
-      const tab = tabs.value.find(t => t.id === `tab-plugin-${id}`);
-      if (tab && tab.pluginEntry) {
-        activePluginId.value = null;
-        activePluginEntry.value = "";
-        // 延迟一帧重新激活以触发 iframe 重建
-        await new Promise(r => setTimeout(r, 50));
-        activePluginId.value = id;
-        activePluginEntry.value = tab.pluginEntry;
+    reloadPluginIframe(id);
+  });
+
+  // 监听插件开发热重载事件（Rust 后端检测到源码文件变化时 emit）
+  unlistenPluginDevReload = await listen('plugin-dev-reload', async () => {
+    // 刷新所有当前打开的插件 Tab
+    for (const tab of tabs.value) {
+      if (tab.type === 'plugin' && tab.id) {
+        reloadPluginIframe(tab.id.replace('tab-plugin-', ''));
       }
     }
   });
@@ -1213,7 +1223,7 @@ onMounted(async () => {
     <template v-for="tab in tabs" :key="'plugin-container-'+tab.id">
       <main v-show="activeTabId === tab.id && tab.type === 'plugin'" class="flex-1 flex flex-col min-w-0 bg-white relative">
         <div data-tauri-drag-region class="absolute top-0 left-0 right-0 h-4 z-20 cursor-default"></div>
-        <PluginHost v-if="tab.type === 'plugin' && tab.pluginId" :pluginId="tab.pluginId" :entryUrl="tab.pluginEntry!" />
+        <PluginHost v-if="tab.type === 'plugin' && tab.pluginId" :key="tab.id + '-' + (reloadKey[tab.id] || 0)" :pluginId="tab.pluginId" :entryUrl="tab.pluginEntry!" />
       </main>
     </template>
 

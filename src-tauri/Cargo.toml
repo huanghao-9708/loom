@@ -36,3 +36,6 @@ base64 = "0.22.1"
 zip = "8.6.0"
 sha2 = "0.10"
 
+# 插件开发热重载：文件监听（仅 dev 编译时实际启用）
+notify-debouncer-full = { version = "0.3", default-features = false }
+

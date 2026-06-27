@@ -26,34 +26,39 @@ window.AppConfig = {
                     
                     <div>
                        <div class="px-3 text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2 font-mono">收藏 (Collection)</div>
-                       <div class="space-y-1 text-[13px] font-medium text-text-secondary">
-                           <div class="px-3 py-2 rounded-lg cursor-not-allowed flex items-center gap-3 opacity-50">
+                       <div class="space-y-1 text-[13px] font-medium">
+                           <div @click="navigate('favorites')" :class="['px-3 py-2 rounded-lg cursor-pointer transition flex items-center gap-3', currentRoute.name === 'favorites' ? 'bg-white text-accent shadow-sm' : 'text-text-secondary hover:bg-gray-100 hover:text-text-primary']">
                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>
                                收藏歌曲
+                               <span v-if="favoritesCount > 0" class="ml-auto text-[10px] text-text-muted font-mono">{{ favoritesCount }}</span>
                            </div>
-                           <div class="px-3 py-2 rounded-lg cursor-not-allowed flex items-center gap-3 opacity-50">
+                           <div @click="navigate('recent')" :class="['px-3 py-2 rounded-lg cursor-pointer transition flex items-center gap-3', currentRoute.name === 'recent' ? 'bg-white text-accent shadow-sm' : 'text-text-secondary hover:bg-gray-100 hover:text-text-primary']">
                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                                最近播放
                            </div>
-                           <div class="px-3 py-2 rounded-lg cursor-not-allowed flex items-center gap-3 opacity-50">
+                           <div @click="navigate('queue')" :class="['px-3 py-2 rounded-lg cursor-pointer transition flex items-center gap-3', currentRoute.name === 'queue' ? 'bg-white text-accent shadow-sm' : 'text-text-secondary hover:bg-gray-100 hover:text-text-primary']">
                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
                                播放队列
+                               <span v-if="queueCount > 0" class="ml-auto text-[10px] text-text-muted font-mono">{{ queueCount }}</span>
                            </div>
                        </div>
                     </div>
 
                     <div>
-                       <div class="px-3 text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2 font-mono">歌单 (Playlists)</div>
+                       <div class="px-3 mb-2 flex items-center justify-between">
+                           <div class="text-[10px] font-bold uppercase tracking-widest text-text-muted font-mono">歌单 (Playlists)</div>
+                       </div>
                        <div class="space-y-1 text-[13px] font-medium text-text-secondary">
-                           <div class="px-3 py-2 flex items-center justify-between opacity-50 cursor-not-allowed">
-                               <div class="flex items-center gap-3"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg> 日常音乐</div>
-                               <span class="text-[10px] text-text-muted font-mono">58</span>
+                           <div v-for="pl in playlists" :key="pl.id" @click="navigate('playlistDetail', { id: pl.id, name: pl.name })"
+                                :class="['px-3 py-2 rounded-lg cursor-pointer flex items-center justify-between transition group', (currentRoute.name === 'playlistDetail' && currentRoute.params.id == pl.id) ? 'bg-white text-accent shadow-sm' : 'hover:bg-gray-100 hover:text-text-primary']">
+                               <div class="flex items-center gap-3 min-w-0">
+                                   <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z"></path></svg>
+                                   <span class="truncate">{{ pl.name }}</span>
+                               </div>
+                               <span class="text-[10px] text-text-muted font-mono flex-shrink-0 ml-2">{{ pl.track_count }}</span>
                            </div>
-                           <div class="px-3 py-2 flex items-center justify-between opacity-50 cursor-not-allowed">
-                               <div class="flex items-center gap-3"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg> 工作专注</div>
-                               <span class="text-[10px] text-text-muted font-mono">24</span>
-                           </div>
-                           <div class="px-3 py-2 mt-2 flex items-center gap-3 text-text-muted cursor-not-allowed opacity-50 hover:bg-gray-100 rounded-lg transition">
+                           <div v-if="playlists.length === 0" class="px-3 py-2 text-[11px] text-text-muted italic">暂无歌单</div>
+                           <div @click="openCreatePlaylist" class="px-3 py-2 mt-2 flex items-center gap-3 text-text-muted cursor-pointer hover:bg-gray-100 hover:text-text-primary rounded-lg transition">
                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
                                新建歌单
                            </div>
@@ -169,11 +174,15 @@ window.AppConfig = {
                       </div>
                    </div>
 
-                   <!-- Dynamic Views -->
-                   <tracks-view v-if="currentRoute.name === 'tracks'"></tracks-view>
-                   <artists-view v-if="currentRoute.name === 'artists'"></artists-view>
-                   <artist-detail-view v-if="currentRoute.name === 'artistDetail'" :artist-id="currentRoute.params.id" :artist-name="currentRoute.params.name"></artist-detail-view>
-                   <album-detail-view v-if="currentRoute.name === 'albumDetail'" :album-id="currentRoute.params.id"></album-detail-view>
+                <!-- Dynamic Views -->
+                <tracks-view v-if="currentRoute.name === 'tracks'"></tracks-view>
+                <artists-view v-if="currentRoute.name === 'artists'"></artists-view>
+                <artist-detail-view v-if="currentRoute.name === 'artistDetail'" :artist-id="currentRoute.params.id" :artist-name="currentRoute.params.name"></artist-detail-view>
+                <album-detail-view v-if="currentRoute.name === 'albumDetail'" :album-id="currentRoute.params.id"></album-detail-view>
+                <favorites-view v-if="currentRoute.name === 'favorites'"></favorites-view>
+                <recent-view v-if="currentRoute.name === 'recent'"></recent-view>
+                <queue-view v-if="currentRoute.name === 'queue'"></queue-view>
+                <playlist-detail-view v-if="currentRoute.name === 'playlistDetail'" :playlist-id="currentRoute.params.id" :playlist-name="currentRoute.params.name"></playlist-detail-view>
                 </main>
                 
                 <!-- Footer Stats Placeholder -->
@@ -367,12 +376,63 @@ window.AppConfig = {
               </div>
           </div>
       </div>
+
+        <!-- 新建歌单 模态框 -->
+        <div v-if="showCreatePlaylist" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" @click.self="closeCreatePlaylist">
+            <div class="bg-white rounded-lg shadow-2xl w-[420px] overflow-hidden flex flex-col">
+                <div class="px-6 py-5 border-b border-border-light">
+                    <h2 class="text-lg font-bold text-text-primary">新建歌单</h2>
+                </div>
+                <div class="px-6 py-6">
+                    <input ref="playlistNameInput" v-model="newPlaylistName" type="text" placeholder="输入歌单名称"
+                        @keydown.enter="confirmCreatePlaylist"
+                        class="w-full px-4 py-2.5 border border-border-light rounded-lg text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent" />
+                </div>
+                <div class="px-6 py-4 border-t border-border-light bg-bg-secondary flex justify-end gap-3">
+                    <button @click="closeCreatePlaylist" class="px-4 py-2 text-sm font-medium text-text-secondary hover:text-text-primary transition">取消</button>
+                    <button @click="confirmCreatePlaylist" :disabled="!newPlaylistName.trim()" class="px-4 py-2 text-sm font-medium bg-black text-white rounded hover:bg-gray-800 transition disabled:opacity-40 disabled:cursor-not-allowed">创建</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 添加到歌单 模态框 -->
+        <div v-if="addToPlaylistModal.show" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" @click.self="closeAddToPlaylist">
+            <div class="bg-white rounded-lg shadow-2xl w-[420px] overflow-hidden flex flex-col max-h-[80vh]">
+                <div class="px-6 py-5 border-b border-border-light">
+                    <h2 class="text-lg font-bold text-text-primary">添加到歌单</h2>
+                    <p class="text-xs text-text-muted mt-1 truncate">歌曲：{{ addToPlaylistModal.trackTitle }}</p>
+                </div>
+                <div class="flex-1 overflow-y-auto p-2">
+                    <div v-if="playlists.length === 0" class="flex flex-col items-center justify-center py-10 text-text-muted text-sm">
+                        <p class="mb-3">还没有任何歌单</p>
+                        <button @click="quickCreatePlaylist" class="text-accent text-xs font-medium hover:underline">立即创建一个</button>
+                    </div>
+                    <div v-else>
+                        <div v-for="pl in playlists" :key="pl.id" @click="confirmAddToPlaylist(pl.id)"
+                             class="flex items-center justify-between px-4 py-3 hover:bg-gray-50 cursor-pointer rounded-md transition">
+                            <div class="flex items-center gap-3 min-w-0">
+                                <svg class="w-5 h-5 text-text-muted flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z"></path></svg>
+                                <span class="text-sm text-text-primary truncate">{{ pl.name }}</span>
+                            </div>
+                            <span class="text-[10px] text-text-muted font-mono flex-shrink-0 ml-2">{{ pl.track_count }}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="px-6 py-4 border-t border-border-light bg-bg-secondary flex justify-end gap-3">
+                    <button @click="closeAddToPlaylist" class="px-4 py-2 text-sm font-medium text-text-secondary hover:text-text-primary transition">取消</button>
+                </div>
+            </div>
+        </div>
     `,
     components: {
         'tracks-view': window.AppViews.TracksView,
         'artists-view': window.AppViews.ArtistsView,
         'artist-detail-view': window.AppViews.ArtistDetailView,
-        'album-detail-view': window.AppViews.AlbumDetailView
+        'album-detail-view': window.AppViews.AlbumDetailView,
+        'favorites-view': window.AppViews.FavoritesView,
+        'recent-view': window.AppViews.RecentView,
+        'queue-view': window.AppViews.QueueView,
+        'playlist-detail-view': window.AppViews.PlaylistDetailView
     },
     setup() {
         const { state, actions, playNext, playPrevious } = window.PlayerStore;
@@ -601,6 +661,42 @@ window.AppConfig = {
             showFolderPicker.value = false;
         };
 
+        // ============ 收藏 & 歌单（来自 views.js 共享状态） ============
+        const favorites = computed(() => window.AppState.favorites.favorites);
+        const favoritesCount = computed(() => Object.keys(window.AppState.favorites.favorites || {}).length);
+        const playlists = computed(() => window.AppState.playlists.playlists);
+        const addToPlaylistModal = computed(() => window.AppState.addToPlaylistModal);
+        const queueCount = computed(() => state.queue.length);
+
+        const showCreatePlaylist = ref(false);
+        const newPlaylistName = ref('');
+        const playlistNameInput = ref(null);
+
+        const openCreatePlaylist = () => {
+            newPlaylistName.value = '';
+            showCreatePlaylist.value = true;
+            setTimeout(() => { playlistNameInput.value && playlistNameInput.value.focus(); }, 50);
+        };
+        const closeCreatePlaylist = () => { showCreatePlaylist.value = false; };
+        const confirmCreatePlaylist = async () => {
+            const name = newPlaylistName.value.trim();
+            if (!name) return;
+            await window.AppActions.createPlaylist(name);
+            showCreatePlaylist.value = false;
+        };
+
+        const closeAddToPlaylist = () => window.AppActions.closeAddToPlaylistModal();
+        const confirmAddToPlaylist = async (playlistId) => {
+            await window.AppActions.addToPlaylist(playlistId, addToPlaylistModal.value.trackId);
+            window.AppActions.closeAddToPlaylistModal();
+        };
+        const quickCreatePlaylist = async () => {
+            const name = '我的歌单 ' + (playlists.value.length + 1);
+            await window.AppActions.createPlaylist(name);
+            closeAddToPlaylist();
+        };
+        // ============================================================
+
         onMounted(async () => {
             try {
                 await loadStats();
@@ -621,6 +717,12 @@ window.AppConfig = {
                 `);
                 
                 await loadScanDirectories();
+
+                // 加载收藏与歌单数据
+                if (window.AppActions) {
+                    await window.AppActions.loadFavorites();
+                    await window.AppActions.loadPlaylists();
+                }
             } catch (e) {
                 console.error("Failed to load initial data", e);
             } finally {
@@ -666,7 +768,11 @@ window.AppConfig = {
             currentTrack, isPlaying, currentTime, duration, volume, isMuted, playMode, progressPercent,
             queue, queueIndex, currentLyrics, activeLyricIndex, lyricsOffsetY, playQueueTrack,
             formatTime, togglePlay, toggleMute, togglePlayMode, seekByClick, setVolumeByClick,
-            playNext, playPrevious
+            playNext, playPrevious,
+            favorites, favoritesCount, playlists, addToPlaylistModal, queueCount,
+            showCreatePlaylist, newPlaylistName, playlistNameInput,
+            openCreatePlaylist, closeCreatePlaylist, confirmCreatePlaylist,
+            closeAddToPlaylist, confirmAddToPlaylist, quickCreatePlaylist
         };
     }
 };

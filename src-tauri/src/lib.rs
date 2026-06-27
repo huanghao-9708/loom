@@ -663,6 +663,76 @@ async fn cmd_market_update(
     Ok(plugin_id)
 }
 
+/// 启动插件开发热重载文件监听器（仅 debug 编译生效）。
+///
+/// 读取环境变量 `LOOM_DEV_PLUGIN_SRC`，递归监听该目录下所有插件源码变化。
+/// 变化经 400ms 防抖后，向前端 emit `plugin-dev-reload` 事件，
+/// 由前端重建插件 iframe 实现保存即刷新。
+///
+/// 未设置环境变量或监听启动失败时静默跳过，不影响应用正常运行。
+#[cfg(debug_assertions)]
+fn start_plugin_dev_watcher(app: &tauri::AppHandle) {
+    let dev_src = match std::env::var("LOOM_DEV_PLUGIN_SRC") {
+        Ok(v) if !v.is_empty() => v,
+        _ => return, // 未开启 dev 模式
+    };
+    let watch_root = std::path::PathBuf::from(&dev_src);
+    if !watch_root.exists() {
+        eprintln!("[Plugin Dev] LOOM_DEV_PLUGIN_SRC 目录不存在: {}", dev_src);
+        return;
+    }
+
+    let app_handle = app.clone();
+    // notify 的后台事件循环必须在独立线程，因为它使用同步 channel
+    std::thread::spawn(move || {
+        use notify_debouncer_full::notify::{RecursiveMode, Watcher};
+        use notify_debouncer_full::{new_debouncer, DebouncedEvent};
+        use std::time::Duration;
+
+        let (tx, rx) = std::sync::mpsc::channel();
+
+        let mut debouncer = match new_debouncer(Duration::from_millis(400), None, tx) {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!("[Plugin Dev] 初始化文件监听失败: {}", e);
+                return;
+            }
+        };
+
+        // 递归监听整个 plugins-src 根目录
+        if let Err(e) = debouncer.watcher().watch(
+            &watch_root,
+            RecursiveMode::Recursive,
+        ) {
+            eprintln!("[Plugin Dev] 启动监听失败: {}", e);
+            return;
+        }
+
+        println!(
+            "[Plugin Dev] 热重载已启用，监听目录: {}",
+            watch_root.display()
+        );
+
+        // 事件循环：收到任意变化（防抖后）即通知前端刷新
+        loop {
+            match rx.recv() {
+                Ok(Ok(_events)) => {
+                    let _ = app_handle.emit("plugin-dev-reload", serde_json::json!({}));
+                }
+                Ok(Err(_e)) => {
+                    // 监听内部错误（如目录被删除后恢复），忽略继续
+                    continue;
+                }
+                Err(_) => {
+                    // channel 关闭，退出线程
+                    break;
+                }
+            }
+        }
+        // 线程退出时 debouncer 随之 drop，监听自动停止
+    });
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let vfs_manager = VfsManager::new();
@@ -699,6 +769,12 @@ pub fn run() {
             app.manage(db_manager);
             app.manage(vfs_manager);
             app.manage(PluginManager::new(app_data_dir.clone()));
+
+            // 插件开发热重载：监听源码目录变化，自动通知前端刷新插件 iframe
+            #[cfg(debug_assertions)]
+            {
+                start_plugin_dev_watcher(app.handle());
+            }
 
             Ok(())
         })
@@ -739,7 +815,7 @@ pub fn run() {
                 let plugin_id = parts[0];
                 let file_path = percent_encoding::percent_decode_str(parts[1]).decode_utf8_lossy();
                 let plugin_mgr = app_handle.app_handle().state::<PluginManager>();
-                let plugin_dir = plugin_mgr.get_plugin_dir(plugin_id);
+                let plugin_dir = plugin_mgr.get_plugin_resource_dir(plugin_id);
                 let target_path = plugin_dir.join(file_path.as_ref());
 
                 let read_res = std::fs::read(&target_path).map_err(|e| e.to_string());

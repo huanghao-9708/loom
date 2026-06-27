@@ -160,6 +160,11 @@ const playerActions = {
 
     toggleMute() {
         playerState.isMuted = !playerState.isMuted;
+    },
+
+    clearQueue() {
+        playerState.queue = [];
+        playerState.queueIndex = -1;
     }
 };
 

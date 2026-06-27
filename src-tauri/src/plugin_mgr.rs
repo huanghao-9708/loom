@@ -55,6 +55,28 @@ impl PluginManager {
         self.base_dir.join("plugins").join(plugin_id)
     }
 
+    /// 解析插件**静态资源**（UI 代码）所在目录。
+    ///
+    /// - 生产环境 / 未设置开关：返回安装目录 `base_dir/plugins/<id>`。
+    /// - 开发环境且设置了环境变量 `LOOM_DEV_PLUGIN_SRC`（仅 debug 编译生效）：
+    ///   返回 `<dev_src>/<id>`，直接从仓库源码加载，编辑即生效。
+    ///
+    /// 注意：数据库（data.db）始终使用安装目录（见 `get_plugin_pool`），
+    /// 实现数据隔离——dev 模式下代码与用户数据互不干扰。
+    pub fn get_plugin_resource_dir(&self, plugin_id: &str) -> PathBuf {
+        #[cfg(debug_assertions)]
+        {
+            if let Ok(dev_src) = std::env::var("LOOM_DEV_PLUGIN_SRC") {
+                let dev_path = std::path::Path::new(&dev_src).join(plugin_id);
+                if dev_path.join("manifest.json").exists() {
+                    return dev_path;
+                }
+                // 源码目录不存在该插件，回退到安装目录
+            }
+        }
+        self.get_plugin_dir(plugin_id)
+    }
+
     /// 获取或创建指定插件的独立 SqlitePool。
     /// 第一次调用时会在 `plugins/<plugin_id>/data.db` 创建全新库文件。
     pub async fn get_plugin_pool(&self, plugin_id: &str) -> Result<SqlitePool, String> {
