@@ -822,6 +822,19 @@ pub fn run() {
             }
             
             // ==========================================
+            // 路由：/loom-sdk.js (插件 SDK 垫片)
+            // ==========================================
+            if uri_path == "/loom-sdk.js" {
+                let sdk_content = include_str!("../../public/loom-sdk.js");
+                return tauri::http::Response::builder()
+                    .status(tauri::http::StatusCode::OK)
+                    .header("content-type", "application/javascript; charset=utf-8")
+                    .header("access-control-allow-origin", "*")
+                    .body(sdk_content.as_bytes().to_vec())
+                    .unwrap();
+            }
+            
+            // ==========================================
             // 路由：/preview/
             // ==========================================
             let tail = if let Some(t) = uri_path.strip_prefix("/preview/") {
