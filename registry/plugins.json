@@ -1,20 +1,29 @@
 {
   "registryVersion": 1,
-  "updatedAt": "2026-06-25T00:00:00Z",
+  "updatedAt": "2026-06-28T03:00:12.971Z",
   "plugins": [
     {
       "id": "com.loom.music",
       "name": "音乐播放器",
       "description": "本地优先的跨平台音乐库，支持高解析度音频、歌词与艺人视图",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "iconUrl": "https://raw.githubusercontent.com/huanghao-9708/loom-plugins-registry/main/assets/com.loom.music.icon.png",
       "author": "Loom Team",
-      "tags": ["music", "media", "audio"],
-      "downloadUrl": "https://github.com/huanghao-9708/loom/releases/download/plugin-music-v1.0.0/com.loom.music.loom",
-      "sha256": "a41ab76c4e5b5fc11bbbbd91dcf4f83a2c451444222c9bf36055b2ae55f8b89f",
+      "tags": [
+        "music",
+        "media",
+        "audio"
+      ],
+      "downloadUrl": "https://github.com/huanghao-9708/loom/releases/download/plugin-music-v1.0.1/com.loom.music.loom",
+      "sha256": "c4191e7a92e751e04b7653bd288da2d1ed5ce23efe87b10e737b10fdedbc8304",
       "minAppVersion": "0.1.0",
       "homepage": "https://github.com/huanghao-9708/loom",
-      "permissions": { "vfs": ["read"], "db": true }
+      "permissions": {
+        "vfs": [
+          "read"
+        ],
+        "db": true
+      }
     }
   ]
 }

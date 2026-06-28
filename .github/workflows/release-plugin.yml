@@ -1,0 +1,60 @@
+name: Release Plugin
+
+on:
+  workflow_dispatch:
+    inputs:
+      plugin_dir:
+        description: 'Plugin Directory Path'
+        required: true
+        default: 'plugins-src/com.loom.music'
+      bump_type:
+        description: 'Version Bump Type'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # Using default token, but it needs write permissions set in repo settings
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Bump Version, Pack and Update Registry
+        id: pack
+        run: |
+          node scripts/gh-action-publish.cjs ${{ github.event.inputs.plugin_dir }} ${{ github.event.inputs.bump_type }}
+          
+      - name: Commit and Push Registry Updates
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add plugins-src/ registry/
+          git commit -m "chore: release plugin ${{ steps.pack.outputs.short_name }} v${{ steps.pack.outputs.version }}"
+          git push
+
+      - name: Create Release and Upload Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: plugin-${{ steps.pack.outputs.short_name }}-v${{ steps.pack.outputs.version }}
+          name: Plugin ${{ steps.pack.outputs.short_name }} v${{ steps.pack.outputs.version }}
+          files: ${{ steps.pack.outputs.output_file }}
+          draft: false
+          prerelease: false
