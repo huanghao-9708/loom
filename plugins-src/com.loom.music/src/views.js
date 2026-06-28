@@ -30,7 +30,7 @@ const formatRelativeTime = (isoStr) => {
 };
 
 // ===================== 共享：收藏 & 歌单状态 =====================
-const collectionState = reactive({ favorites: {} });   // { trackId: true }
+const collectionState = reactive({ favorites: {}, artistFavorites: {}, albumFavorites: {} });   // { trackId: true, artistId: true, albumId: true }
 const playlistState = reactive({ playlists: [] });      // [{ id, name, track_count, ... }]
 const addToPlaylistModal = reactive({ show: false, trackId: null, trackTitle: '' });
 
@@ -59,6 +59,56 @@ async function toggleFavorite(track) {
             collectionState.favorites[id] = true;
         }
     } catch (e) { console.error('toggleFavorite', e); }
+}
+
+async function loadFavoriteArtists() {
+    try {
+        const rows = await db().query("SELECT artist_id FROM favorite_artists");
+        const fav = {};
+        rows.forEach(r => { fav[r.artist_id] = true; });
+        collectionState.artistFavorites = fav;
+    } catch (e) { console.error('loadFavoriteArtists', e); }
+}
+
+function isFavoriteArtist(id) { return !!collectionState.artistFavorites[id]; }
+
+async function toggleFavoriteArtist(artist) {
+    if (!artist || artist.id == null) return;
+    const id = artist.id;
+    try {
+        if (collectionState.artistFavorites[id]) {
+            await db().execute("DELETE FROM favorite_artists WHERE artist_id = ?", [id]);
+            delete collectionState.artistFavorites[id];
+        } else {
+            await db().execute("INSERT INTO favorite_artists (artist_id) VALUES (?)", [id]);
+            collectionState.artistFavorites[id] = true;
+        }
+    } catch (e) { console.error('toggleFavoriteArtist', e); }
+}
+
+async function loadFavoriteAlbums() {
+    try {
+        const rows = await db().query("SELECT album_id FROM favorite_albums");
+        const fav = {};
+        rows.forEach(r => { fav[r.album_id] = true; });
+        collectionState.albumFavorites = fav;
+    } catch (e) { console.error('loadFavoriteAlbums', e); }
+}
+
+function isFavoriteAlbum(id) { return !!collectionState.albumFavorites[id]; }
+
+async function toggleFavoriteAlbum(album) {
+    if (!album || album.id == null) return;
+    const id = album.id;
+    try {
+        if (collectionState.albumFavorites[id]) {
+            await db().execute("DELETE FROM favorite_albums WHERE album_id = ?", [id]);
+            delete collectionState.albumFavorites[id];
+        } else {
+            await db().execute("INSERT INTO favorite_albums (album_id) VALUES (?)", [id]);
+            collectionState.albumFavorites[id] = true;
+        }
+    } catch (e) { console.error('toggleFavoriteAlbum', e); }
 }
 
 async function loadPlaylists() {
@@ -120,10 +170,13 @@ function closeAddToPlaylistModal() {
 
 // 表格行复用的方法集
 const tableFns = () => ({ isFav: isFavorite, toggleFav: toggleFavorite, addToMenu: openAddToPlaylistModal });
+const artistTableFns = () => ({ isFavArtist: isFavoriteArtist, toggleFavArtist: toggleFavoriteArtist });
+const albumTableFns = () => ({ isFavAlbum: isFavoriteAlbum, toggleFavAlbum: toggleFavoriteAlbum });
 
 window.AppActions = {
-    loadFavorites, loadPlaylists, createPlaylist, deletePlaylist, renamePlaylist,
+    loadFavorites, loadFavoriteArtists, loadFavoriteAlbums, loadPlaylists, createPlaylist, deletePlaylist, renamePlaylist,
     addToPlaylist, removeFromPlaylist, toggleFavorite, isFavorite,
+    toggleFavoriteArtist, isFavoriteArtist, toggleFavoriteAlbum, isFavoriteAlbum,
     openAddToPlaylistModal, closeAddToPlaylistModal
 };
 window.AppState = { favorites: collectionState, playlists: playlistState, addToPlaylistModal };
@@ -140,7 +193,7 @@ const FavButtonTpl = `
 `;
 
 const AddToPlaylistBtnTpl = `
-    <button @click.stop="addToMenu(track)" title="添加到歌单" class="opacity-0 group-hover:opacity-100 transition text-text-muted hover:text-accent">
+    <button @click.stop="addToMenu(track)" title="添加到歌单" class="opacity-0 group-hover:opacity-100 transition text-text-muted hover:text-text-primary">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
     </button>
 `;
@@ -180,7 +233,7 @@ const TracksTableTemplate = `
                 @dblclick="playTrack(track)">
                 <td class="py-2.5 pl-6 text-center text-text-muted font-mono text-xs relative tabular-nums">
                     <span class="group-hover:hidden">{{ String(index + 1).padStart(2, '0') }}</span>
-                    <button @click.stop="playTrack(track)" class="hidden group-hover:flex absolute inset-0 items-center justify-center text-accent">
+                    <button @click.stop="playTrack(track)" class="hidden group-hover:flex absolute inset-0 items-center justify-center text-text-primary">
                         <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"></path></svg>
                     </button>
                 </td>
@@ -206,15 +259,25 @@ const TracksView = {
         <div class="w-full px-8 pb-8">
             <div class="py-6 flex items-center justify-between sticky top-0 bg-bg-base z-20">
                 <h1 class="text-2xl font-bold tracking-tight text-text-primary">全部歌曲</h1>
-                <button @click="playAll" v-if="tracks.length > 0" class="bg-black text-white px-5 py-2 rounded-full text-xs font-semibold hover:bg-gray-800 transition active:scale-95 flex items-center gap-2 shadow-md">
-                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"></path></svg>
-                    播放全部
-                </button>
+                <div class="flex items-center gap-3">
+                    <div class="relative flex items-center">
+                        <svg class="w-3.5 h-3.5 absolute left-3 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                        <input type="text" placeholder="搜索歌曲..." v-model="searchQuery" class="bg-bg-secondary border border-border-light rounded-md pl-9 pr-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-gray-300 w-48 text-text-secondary placeholder:text-text-muted transition-colors" />
+                    </div>
+                    <button @click="playAll" v-if="tracks.length > 0" class="bg-black text-white px-5 py-2 rounded-full text-xs font-semibold hover:bg-gray-800 transition active:scale-95 flex items-center gap-2 shadow-md">
+                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"></path></svg>
+                        播放全部
+                    </button>
+                </div>
             </div>
             <div v-if="loading" class="text-text-muted mt-4">加载歌曲中...</div>
             <div v-else-if="tracks.length === 0" class="text-text-muted flex flex-col items-center justify-center h-64 mt-4">
                 <svg class="w-12 h-12 mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path></svg>
                 <p>未找到歌曲。请前往设置扫描文件夹。</p>
+            </div>
+            <div v-else-if="filteredTracks.length === 0" class="text-text-muted flex flex-col items-center justify-center h-64 mt-4">
+                <svg class="w-12 h-12 mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                <p>未找到匹配的歌曲。</p>
             </div>
             <div v-else>
                 ${TracksTableTemplate}
@@ -224,6 +287,16 @@ const TracksView = {
     setup() {
         const loading = ref(true);
         const tracks = ref([]);
+        const searchQuery = ref('');
+
+        const filteredTracks = Vue.computed(() => {
+            const q = searchQuery.value.trim().toLowerCase();
+            if (!q) return tracks.value;
+            return tracks.value.filter(t =>
+                (t.title && t.title.toLowerCase().includes(q)) ||
+                (t.artist_name && t.artist_name.toLowerCase().includes(q))
+            );
+        });
 
         const fetchTracks = async () => {
             loading.value = true;
@@ -246,7 +319,7 @@ const TracksView = {
         const playAll = () => { if (tracks.value.length) playTrack(tracks.value[0]); };
 
         onMounted(fetchTracks);
-        return { loading, tracks, playTrack, playAll, formatTime, ...tableFns() };
+        return { loading, tracks, filteredTracks, searchQuery, playTrack, playAll, formatTime, ...tableFns() };
     }
 };
 
@@ -255,10 +328,18 @@ const ArtistsView = {
         <div class="w-full px-8 pb-8">
             <div class="py-6 flex items-center justify-between sticky top-0 bg-bg-base z-20">
                 <h1 class="text-2xl font-bold tracking-tight text-text-primary">艺人</h1>
+                <div class="relative flex items-center">
+                    <svg class="w-3.5 h-3.5 absolute left-3 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    <input type="text" placeholder="搜索艺人..." v-model="searchQuery" class="bg-bg-secondary border border-border-light rounded-md pl-9 pr-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-gray-300 w-48 text-text-secondary placeholder:text-text-muted transition-colors" />
+                </div>
             </div>
             <div v-if="loading" class="text-text-muted mt-4">加载艺人中...</div>
             <div v-else-if="artists.length === 0" class="text-text-muted flex flex-col items-center justify-center h-64 mt-4">
                 <p>未找到艺人。</p>
+            </div>
+            <div v-else-if="filteredArtists.length === 0" class="text-text-muted flex flex-col items-center justify-center h-64 mt-4">
+                <svg class="w-12 h-12 mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                <p>未找到匹配的艺人。</p>
             </div>
             <table v-else class="w-full text-left border-collapse">
                 <thead>
@@ -267,18 +348,24 @@ const ArtistsView = {
                         <th class="py-3 font-medium">艺人</th>
                         <th class="py-3 pr-8 font-medium text-right">歌曲数</th>
                         <th class="py-3 pr-6 font-medium text-right">专辑数</th>
+                        <th class="py-3 pr-6 font-medium text-right w-16">操作</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <tr v-for="(artist, index) in artists" :key="artist.id"
+                    <tr v-for="(artist, index) in filteredArtists" :key="artist.id"
                         @click="goToArtist(artist)"
                         class="group hover:bg-gray-50 transition cursor-pointer border-b border-gray-100 last:border-0">
                         <td class="py-2.5 pl-6 text-center text-text-muted font-mono text-xs tabular-nums">{{ String(index + 1).padStart(2, '0') }}</td>
                         <td class="py-2.5 font-medium text-text-primary text-sm">
-                            <span class="truncate max-w-[280px] group-hover:text-accent transition">{{ artist.name }}</span>
+                            <span class="truncate max-w-[280px] group-hover:text-text-primary transition">{{ artist.name }}</span>
                         </td>
                         <td class="py-2.5 pr-8 text-right text-text-secondary text-xs font-mono tabular-nums">{{ artist.tracks_count }}</td>
                         <td class="py-2.5 pr-6 text-right text-text-secondary text-xs font-mono tabular-nums">{{ artist.albums_count }}</td>
+                        <td class="py-2.5 pr-6 text-right">
+                            <button @click.stop="toggleFavArtist(artist)" class="transition" :class="isFavArtist(artist.id) ? 'text-red-400' : 'opacity-0 group-hover:opacity-100 text-text-muted hover:text-red-400'" :title="isFavArtist(artist.id) ? '取消收藏' : '收藏艺人'">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>
+                            </button>
+                        </td>
                     </tr>
                 </tbody>
             </table>
@@ -287,6 +374,15 @@ const ArtistsView = {
     setup() {
         const loading = ref(true);
         const artists = ref([]);
+        const searchQuery = ref('');
+
+        const filteredArtists = Vue.computed(() => {
+            const q = searchQuery.value.trim().toLowerCase();
+            if (!q) return artists.value;
+            return artists.value.filter(a =>
+                a.name && a.name.toLowerCase().includes(q)
+            );
+        });
 
         const fetchArtists = async () => {
             loading.value = true;
@@ -315,7 +411,196 @@ const ArtistsView = {
         };
 
         onMounted(fetchArtists);
-        return { loading, artists, goToArtist };
+        return { loading, artists, filteredArtists, searchQuery, goToArtist, ...artistTableFns() };
+    }
+};
+
+// ===================== 收藏艺人 =====================
+const FavoriteArtistsView = {
+    template: `
+        <div class="w-full px-8 pb-8">
+            <div class="py-6 flex items-center justify-between sticky top-0 bg-bg-base z-20">
+                <div>
+                    <h1 class="text-2xl font-bold tracking-tight text-text-primary">收藏艺人</h1>
+                    <p class="text-xs text-text-muted mt-1 font-mono">{{ artists.length }} 位艺人</p>
+                </div>
+                <div class="relative flex items-center">
+                    <svg class="w-3.5 h-3.5 absolute left-3 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    <input type="text" placeholder="搜索收藏艺人..." v-model="searchQuery" class="bg-bg-secondary border border-border-light rounded-md pl-9 pr-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-gray-300 w-48 text-text-secondary placeholder:text-text-muted transition-colors" />
+                </div>
+            </div>
+            <div v-if="loading" class="text-text-muted mt-4">加载中...</div>
+            <div v-else-if="artists.length === 0" class="text-text-muted flex flex-col items-center justify-center h-64 mt-4">
+                <svg class="w-12 h-12 mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                <p>还没有收藏任何艺人。<br/>在艺人页面点击收藏按钮即可收藏。</p>
+            </div>
+            <div v-else-if="filteredArtists.length === 0" class="text-text-muted flex flex-col items-center justify-center h-64 mt-4">
+                <svg class="w-12 h-12 mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                <p>未找到匹配的艺人。</p>
+            </div>
+            <table v-else class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="text-xs uppercase tracking-widest text-text-muted border-b border-border-light bg-bg-base sticky top-0 z-10 backdrop-blur-md bg-opacity-90">
+                        <th class="py-3 pl-6 font-medium w-16 text-center">序号</th>
+                        <th class="py-3 font-medium">艺人</th>
+                        <th class="py-3 pr-8 font-medium text-right">歌曲数</th>
+                        <th class="py-3 pr-6 font-medium text-right">专辑数</th>
+                        <th class="py-3 pr-6 font-medium text-right w-16">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="(artist, index) in filteredArtists" :key="artist.id"
+                        @click="goToArtist(artist)"
+                        class="group hover:bg-gray-50 transition cursor-pointer border-b border-gray-100 last:border-0">
+                        <td class="py-2.5 pl-6 text-center text-text-muted font-mono text-xs tabular-nums">{{ String(index + 1).padStart(2, '0') }}</td>
+                        <td class="py-2.5 font-medium text-text-primary text-sm">
+                            <span class="truncate max-w-[280px]">{{ artist.name }}</span>
+                        </td>
+                        <td class="py-2.5 pr-8 text-right text-text-secondary text-xs font-mono tabular-nums">{{ artist.tracks_count }}</td>
+                        <td class="py-2.5 pr-6 text-right text-text-secondary text-xs font-mono tabular-nums">{{ artist.albums_count }}</td>
+                        <td class="py-2.5 pr-6 text-right">
+                            <button @click.stop="toggleFavArtist(artist)" class="opacity-0 group-hover:opacity-100 transition text-text-muted hover:text-red-500" title="取消收藏">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>
+                            </button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    `,
+    setup() {
+        const loading = ref(true);
+        const artists = ref([]);
+        const searchQuery = ref('');
+
+        const filteredArtists = Vue.computed(() => {
+            const q = searchQuery.value.trim().toLowerCase();
+            if (!q) return artists.value;
+            return artists.value.filter(a =>
+                a.name && a.name.toLowerCase().includes(q)
+            );
+        });
+
+        const fetchFavoriteArtists = async () => {
+            loading.value = true;
+            try {
+                const rows = await window.loomContext.db.query(`
+                    SELECT
+                        a.id, a.name,
+                        COUNT(DISTINCT ta.track_id) as tracks_count,
+                        COUNT(DISTINCT al.id) as albums_count
+                    FROM favorite_artists fa
+                    JOIN artists a ON fa.artist_id = a.id
+                    LEFT JOIN track_artists ta ON a.id = ta.artist_id
+                    LEFT JOIN albums al ON a.id = al.album_artist_id
+                    GROUP BY a.id
+                    ORDER BY fa.favorited_at DESC
+                `);
+                artists.value = rows;
+            } catch (e) {
+                console.error("Failed to load favorite artists", e);
+            } finally {
+                loading.value = false;
+            }
+        };
+
+        watch(() => JSON.stringify(collectionState.artistFavorites), fetchFavoriteArtists);
+
+        const goToArtist = (artist) => {
+            window.AppRouter.navigate('artistDetail', { id: artist.id, name: artist.name });
+        };
+
+        onMounted(fetchFavoriteArtists);
+        return { loading, artists, filteredArtists, searchQuery, goToArtist, ...artistTableFns() };
+    }
+};
+
+// ===================== 收藏专辑 =====================
+const FavoriteAlbumsView = {
+    template: `
+        <div class="w-full px-8 pb-8">
+            <div class="py-6 flex items-center justify-between sticky top-0 bg-bg-base z-20">
+                <div>
+                    <h1 class="text-2xl font-bold tracking-tight text-text-primary">收藏专辑</h1>
+                    <p class="text-xs text-text-muted mt-1 font-mono">{{ albums.length }} 张专辑</p>
+                </div>
+                <div class="relative flex items-center">
+                    <svg class="w-3.5 h-3.5 absolute left-3 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    <input type="text" placeholder="搜索收藏专辑..." v-model="searchQuery" class="bg-bg-secondary border border-border-light rounded-md pl-9 pr-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-gray-300 w-48 text-text-secondary placeholder:text-text-muted transition-colors" />
+                </div>
+            </div>
+            <div v-if="loading" class="text-text-muted mt-4">加载中...</div>
+            <div v-else-if="albums.length === 0" class="text-text-muted flex flex-col items-center justify-center h-64 mt-4">
+                <svg class="w-12 h-12 mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                <p>还没有收藏任何专辑。<br/>在专辑页面点击收藏按钮即可收藏。</p>
+            </div>
+            <div v-else-if="filteredAlbums.length === 0" class="text-text-muted flex flex-col items-center justify-center h-64 mt-4">
+                <svg class="w-12 h-12 mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                <p>未找到匹配的专辑。</p>
+            </div>
+            <div v-else class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                <div v-for="album in filteredAlbums" :key="album.id" @click="goToAlbum(album)" class="flex flex-col gap-3 group cursor-pointer">
+                    <div class="aspect-square bg-bg-secondary rounded-lg border border-border-light overflow-hidden shadow-sm group-hover:shadow-md transition relative">
+                        <img v-if="album.cover_url" :src="album.cover_url" class="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+                        <div v-else class="w-full h-full flex items-center justify-center text-text-muted">
+                            <svg class="w-12 h-12 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path></svg>
+                        </div>
+                        <button @click.stop="toggleFavAlbum(album)" class="absolute top-2 right-2 transition opacity-0 group-hover:opacity-100" :class="isFavAlbum(album.id) ? 'opacity-100 text-red-400' : 'text-white drop-shadow-md hover:text-red-400'" :title="isFavAlbum(album.id) ? '取消收藏' : '收藏专辑'">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>
+                        </button>
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="font-medium text-sm text-text-primary truncate">{{ album.title }}</span>
+                        <span class="text-xs text-text-muted mt-0.5">{{ album.artist_name || '未知艺人' }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `,
+    setup() {
+        const loading = ref(true);
+        const albums = ref([]);
+        const searchQuery = ref('');
+
+        const filteredAlbums = Vue.computed(() => {
+            const q = searchQuery.value.trim().toLowerCase();
+            if (!q) return albums.value;
+            return albums.value.filter(a =>
+                (a.title && a.title.toLowerCase().includes(q)) ||
+                (a.artist_name && a.artist_name.toLowerCase().includes(q))
+            );
+        });
+
+        const fetchFavoriteAlbums = async () => {
+            loading.value = true;
+            try {
+                const rows = await window.loomContext.db.query(`
+                    SELECT
+                        al.id, al.title,
+                        a.name as artist_name,
+                        art.cache_path
+                    FROM favorite_albums fa
+                    JOIN albums al ON fa.album_id = al.id
+                    LEFT JOIN artists a ON al.album_artist_id = a.id
+                    LEFT JOIN artwork art ON al.cover_artwork_id = art.id
+                    ORDER BY fa.favorited_at DESC
+                `);
+                albums.value = rows.map(r => ({ ...r, cover_url: getArtworkUrl(r.cache_path) }));
+            } catch (e) {
+                console.error("Failed to load favorite albums", e);
+            } finally {
+                loading.value = false;
+            }
+        };
+
+        watch(() => JSON.stringify(collectionState.albumFavorites), fetchFavoriteAlbums);
+
+        const goToAlbum = (album) => {
+            window.AppRouter.navigate('albumDetail', { id: album.id });
+        };
+
+        onMounted(fetchFavoriteAlbums);
+        return { loading, albums, filteredAlbums, searchQuery, goToAlbum, ...albumTableFns() };
     }
 };
 
@@ -324,7 +609,12 @@ const ArtistDetailView = {
     template: `
         <div class="w-full flex flex-col h-full">
             <div class="px-8 pt-8 pb-4 shrink-0 flex items-center justify-between">
-                <h1 class="text-3xl font-bold tracking-tight text-text-primary">{{ artistName }}</h1>
+                <div class="flex items-center gap-3">
+                    <h1 class="text-3xl font-bold tracking-tight text-text-primary">{{ artistName }}</h1>
+                    <button @click.stop="toggleFavArtist({ id: artistId })" class="transition" :class="isFavArtist(artistId) ? 'text-red-400' : 'text-text-muted hover:text-red-400'" :title="isFavArtist(artistId) ? '取消收藏' : '收藏艺人'">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>
+                    </button>
+                </div>
             </div>
 
             <div class="px-8 border-b border-border-light flex gap-6 text-sm font-medium shrink-0">
@@ -335,7 +625,11 @@ const ArtistDetailView = {
             <div class="flex-1 overflow-y-auto pt-4 px-8 pb-8 relative">
                 <!-- Tracks Tab -->
                 <div v-show="activeTab === 'tracks'">
-                    <div class="flex items-center mb-4 sticky top-0 bg-bg-base z-20 py-2">
+                    <div class="flex items-center justify-between mb-4 sticky top-0 bg-bg-base z-20 py-2">
+                        <div class="relative flex items-center">
+                            <svg class="w-3.5 h-3.5 absolute left-3 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                            <input type="text" placeholder="搜索歌曲..." v-model="searchQuery" class="bg-bg-secondary border border-border-light rounded-md pl-9 pr-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-gray-300 w-48 text-text-secondary placeholder:text-text-muted transition-colors" />
+                        </div>
                         <button @click="playAll" v-if="tracks.length > 0" class="bg-black text-white px-5 py-2 rounded-full text-xs font-semibold hover:bg-gray-800 transition active:scale-95 flex items-center gap-2 shadow-md">
                             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"></path></svg>
                             播放全部
@@ -343,6 +637,7 @@ const ArtistDetailView = {
                     </div>
                     <div v-if="loading" class="text-text-muted">加载中...</div>
                     <div v-else-if="tracks.length === 0" class="text-text-muted mt-4">未找到歌曲。</div>
+                    <div v-else-if="filteredTracks.length === 0" class="text-text-muted mt-4">未找到匹配的歌曲。</div>
                     <div v-else>
                         ${TracksTableTemplate}
                     </div>
@@ -361,7 +656,7 @@ const ArtistDetailView = {
                                 </div>
                             </div>
                             <div class="flex flex-col">
-                                <span class="font-medium text-sm text-text-primary truncate group-hover:text-accent transition">{{ album.title }}</span>
+                                <span class="font-medium text-sm text-text-primary truncate group-hover:text-text-primary transition">{{ album.title }}</span>
                                 <span class="text-xs text-text-muted mt-0.5">{{ album.tracks_count }} 首歌曲</span>
                             </div>
                         </div>
@@ -375,6 +670,15 @@ const ArtistDetailView = {
         const activeTab = ref('tracks');
         const tracks = ref([]);
         const albums = ref([]);
+        const searchQuery = ref('');
+
+        const filteredTracks = Vue.computed(() => {
+            const q = searchQuery.value.trim().toLowerCase();
+            if (!q) return tracks.value;
+            return tracks.value.filter(t =>
+                (t.title && t.title.toLowerCase().includes(q))
+            );
+        });
 
         const loadData = async () => {
             loading.value = true;
@@ -418,7 +722,7 @@ const ArtistDetailView = {
             window.AppRouter.navigate('albumDetail', { id: album.id });
         };
 
-        return { loading, activeTab, tracks, albums, playTrack, playAll, goToAlbum, formatTime, ...tableFns() };
+        return { loading, activeTab, tracks, filteredTracks, searchQuery, albums, playTrack, playAll, goToAlbum, formatTime, ...tableFns(), ...artistTableFns() };
     }
 };
 
@@ -437,7 +741,12 @@ const AlbumDetailView = {
                     </div>
                     <div class="flex flex-col gap-2">
                         <div class="text-[10px] font-bold tracking-widest uppercase text-text-muted font-mono">专辑</div>
-                        <h1 class="text-4xl font-bold tracking-tight text-text-primary mb-2">{{ album.title }}</h1>
+                        <div class="flex items-center gap-3 mb-2">
+                            <h1 class="text-4xl font-bold tracking-tight text-text-primary">{{ album.title }}</h1>
+                            <button @click.stop="toggleFavAlbum({ id: album.id })" class="transition mt-1.5" :class="isFavAlbum(album.id) ? 'text-red-400' : 'text-text-muted hover:text-red-400'" :title="isFavAlbum(album.id) ? '取消收藏' : '收藏专辑'">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>
+                            </button>
+                        </div>
                         <div class="text-sm font-medium text-text-secondary flex items-center gap-2">
                             <span @click="goToArtist" class="text-text-primary hover:underline cursor-pointer">{{ album.artist_name || '未知艺人' }}</span>
                             <span>•</span>
@@ -455,7 +764,14 @@ const AlbumDetailView = {
                 <div class="flex-1 overflow-y-auto px-8 py-4 relative">
                     <div v-if="tracks.length === 0" class="text-text-muted mt-4">未找到歌曲。</div>
                     <div v-else>
-                        ${TracksTableTemplate}
+                        <div class="relative flex items-center mb-4">
+                            <svg class="w-3.5 h-3.5 absolute left-3 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                            <input type="text" placeholder="搜索歌曲..." v-model="searchQuery" class="bg-bg-secondary border border-border-light rounded-md pl-9 pr-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-gray-300 w-48 text-text-secondary placeholder:text-text-muted transition-colors" />
+                        </div>
+                        <div v-if="filteredTracks.length === 0" class="text-text-muted mt-4">未找到匹配的歌曲。</div>
+                        <div v-else>
+                            ${TracksTableTemplate}
+                        </div>
                     </div>
                 </div>
             </template>
@@ -465,6 +781,16 @@ const AlbumDetailView = {
         const loading = ref(true);
         const album = ref(null);
         const tracks = ref([]);
+        const searchQuery = ref('');
+
+        const filteredTracks = Vue.computed(() => {
+            const q = searchQuery.value.trim().toLowerCase();
+            if (!q) return tracks.value;
+            return tracks.value.filter(t =>
+                (t.title && t.title.toLowerCase().includes(q)) ||
+                (t.artist_name && t.artist_name.toLowerCase().includes(q))
+            );
+        });
 
         const loadData = async () => {
             loading.value = true;
@@ -511,7 +837,7 @@ const AlbumDetailView = {
             }
         };
 
-        return { loading, album, tracks, playTrack, playAll, goToArtist, formatTime, ...tableFns() };
+        return { loading, album, tracks, filteredTracks, searchQuery, playTrack, playAll, goToArtist, formatTime, ...tableFns(), ...albumTableFns() };
     }
 };
 
@@ -524,15 +850,25 @@ const FavoritesView = {
                     <h1 class="text-2xl font-bold tracking-tight text-text-primary">收藏歌曲</h1>
                     <p class="text-xs text-text-muted mt-1 font-mono">{{ tracks.length }} 首歌曲</p>
                 </div>
-                <button @click="playAll" v-if="tracks.length > 0" class="bg-black text-white px-5 py-2 rounded-full text-xs font-semibold hover:bg-gray-800 transition active:scale-95 flex items-center gap-2 shadow-md">
-                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"></path></svg>
-                    播放全部
-                </button>
+                <div class="flex items-center gap-3">
+                    <div class="relative flex items-center">
+                        <svg class="w-3.5 h-3.5 absolute left-3 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                        <input type="text" placeholder="搜索收藏..." v-model="searchQuery" class="bg-bg-secondary border border-border-light rounded-md pl-9 pr-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-gray-300 w-48 text-text-secondary placeholder:text-text-muted transition-colors" />
+                    </div>
+                    <button @click="playAll" v-if="tracks.length > 0" class="bg-black text-white px-5 py-2 rounded-full text-xs font-semibold hover:bg-gray-800 transition active:scale-95 flex items-center gap-2 shadow-md">
+                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"></path></svg>
+                        播放全部
+                    </button>
+                </div>
             </div>
             <div v-if="loading" class="text-text-muted mt-4">加载中...</div>
             <div v-else-if="tracks.length === 0" class="text-text-muted flex flex-col items-center justify-center h-64 mt-4">
                 <svg class="w-12 h-12 mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>
                 <p>还没有收藏任何歌曲。<br/>点击歌曲标题旁的爱心即可收藏。</p>
+            </div>
+            <div v-else-if="filteredTracks.length === 0" class="text-text-muted flex flex-col items-center justify-center h-64 mt-4">
+                <svg class="w-12 h-12 mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                <p>未找到匹配的收藏。</p>
             </div>
             <div v-else>
                 ${TracksTableTemplate}
@@ -542,6 +878,16 @@ const FavoritesView = {
     setup() {
         const loading = ref(true);
         const tracks = ref([]);
+        const searchQuery = ref('');
+
+        const filteredTracks = Vue.computed(() => {
+            const q = searchQuery.value.trim().toLowerCase();
+            if (!q) return tracks.value;
+            return tracks.value.filter(t =>
+                (t.title && t.title.toLowerCase().includes(q)) ||
+                (t.artist_name && t.artist_name.toLowerCase().includes(q))
+            );
+        });
 
         const fetchFavorites = async () => {
             loading.value = true;
@@ -568,7 +914,7 @@ const FavoritesView = {
         const playAll = () => { if (tracks.value.length) playTrack(tracks.value[0]); };
 
         onMounted(fetchFavorites);
-        return { loading, tracks, playTrack, playAll, formatTime, ...tableFns() };
+        return { loading, tracks, filteredTracks, searchQuery, playTrack, playAll, formatTime, ...tableFns() };
     }
 };
 
@@ -581,15 +927,25 @@ const RecentView = {
                     <h1 class="text-2xl font-bold tracking-tight text-text-primary">最近播放</h1>
                     <p class="text-xs text-text-muted mt-1 font-mono">{{ tracks.length }} 首歌曲</p>
                 </div>
-                <button @click="playAll" v-if="tracks.length > 0" class="bg-black text-white px-5 py-2 rounded-full text-xs font-semibold hover:bg-gray-800 transition active:scale-95 flex items-center gap-2 shadow-md">
-                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"></path></svg>
-                    播放全部
-                </button>
+                <div class="flex items-center gap-3">
+                    <div class="relative flex items-center">
+                        <svg class="w-3.5 h-3.5 absolute left-3 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                        <input type="text" placeholder="搜索记录..." v-model="searchQuery" class="bg-bg-secondary border border-border-light rounded-md pl-9 pr-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-gray-300 w-48 text-text-secondary placeholder:text-text-muted transition-colors" />
+                    </div>
+                    <button @click="playAll" v-if="tracks.length > 0" class="bg-black text-white px-5 py-2 rounded-full text-xs font-semibold hover:bg-gray-800 transition active:scale-95 flex items-center gap-2 shadow-md">
+                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"></path></svg>
+                        播放全部
+                    </button>
+                </div>
             </div>
             <div v-if="loading" class="text-text-muted mt-4">加载中...</div>
             <div v-else-if="tracks.length === 0" class="text-text-muted flex flex-col items-center justify-center h-64 mt-4">
                 <svg class="w-12 h-12 mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                 <p>还没有播放记录。<br/>双击任意歌曲开始聆听吧。</p>
+            </div>
+            <div v-else-if="filteredTracks.length === 0" class="text-text-muted flex flex-col items-center justify-center h-64 mt-4">
+                <svg class="w-12 h-12 mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                <p>未找到匹配的记录。</p>
             </div>
             <div v-else>
                 <table class="w-full text-left border-collapse">
@@ -605,12 +961,12 @@ const RecentView = {
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="(track, index) in tracks" :key="track.id"
+                        <tr v-for="(track, index) in filteredTracks" :key="track.id"
                             class="group hover:bg-gray-50 transition cursor-pointer border-b border-gray-100 last:border-0"
                             @dblclick="playTrack(track)">
                             <td class="py-2.5 pl-6 text-center text-text-muted font-mono text-xs relative tabular-nums">
                                 <span class="group-hover:hidden">{{ String(index + 1).padStart(2, '0') }}</span>
-                                <button @click.stop="playTrack(track)" class="hidden group-hover:flex absolute inset-0 items-center justify-center text-accent">
+                                <button @click.stop="playTrack(track)" class="hidden group-hover:flex absolute inset-0 items-center justify-center text-text-primary">
                                     <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"></path></svg>
                                 </button>
                             </td>
@@ -636,6 +992,16 @@ const RecentView = {
     setup() {
         const loading = ref(true);
         const tracks = ref([]);
+        const searchQuery = ref('');
+
+        const filteredTracks = Vue.computed(() => {
+            const q = searchQuery.value.trim().toLowerCase();
+            if (!q) return tracks.value;
+            return tracks.value.filter(t =>
+                (t.title && t.title.toLowerCase().includes(q)) ||
+                (t.artist_name && t.artist_name.toLowerCase().includes(q))
+            );
+        });
 
         const fetchRecent = async () => {
             loading.value = true;
@@ -662,7 +1028,7 @@ const RecentView = {
         const playAll = () => { if (tracks.value.length) playTrack(tracks.value[0]); };
 
         onMounted(fetchRecent);
-        return { loading, tracks, playTrack, playAll, formatTime, formatRelativeTime, ...tableFns() };
+        return { loading, tracks, filteredTracks, searchQuery, playTrack, playAll, formatTime, formatRelativeTime, ...tableFns() };
     }
 };
 
@@ -676,6 +1042,10 @@ const QueueView = {
                     <p class="text-xs text-text-muted mt-1 font-mono">{{ queue.length }} 首歌曲</p>
                 </div>
                 <div class="flex items-center gap-3">
+                    <div class="relative flex items-center">
+                        <svg class="w-3.5 h-3.5 absolute left-3 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                        <input type="text" placeholder="搜索队列..." v-model="searchQuery" class="bg-bg-secondary border border-border-light rounded-md pl-9 pr-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-gray-300 w-48 text-text-secondary placeholder:text-text-muted transition-colors" />
+                    </div>
                     <button @click="clearQueue" v-if="queue.length > 0" class="text-text-secondary hover:text-red-500 transition px-4 py-2 rounded-full text-xs font-medium border border-border-light bg-white flex items-center gap-2">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                         清空队列
@@ -690,6 +1060,10 @@ const QueueView = {
                 <svg class="w-12 h-12 mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
                 <p>播放队列为空。<br/>双击歌曲或点击"播放全部"加入队列。</p>
             </div>
+            <div v-else-if="filteredQueue.length === 0" class="text-text-muted flex flex-col items-center justify-center flex-1">
+                <svg class="w-12 h-12 mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                <p>未找到匹配的歌曲。</p>
+            </div>
             <div v-else>
                 <table class="w-full text-left border-collapse">
                     <thead>
@@ -702,18 +1076,18 @@ const QueueView = {
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="(track, index) in queue" :key="track.id + '-' + index"
+                        <tr v-for="(track, index) in filteredQueue" :key="track.id + '-' + index"
                             class="group hover:bg-gray-50 transition cursor-pointer border-b border-gray-100 last:border-0"
                             :class="{'bg-gray-50': index === currentIndex}"
                             @dblclick="playFrom(index)">
                             <td class="py-2.5 pl-6 text-center font-mono text-xs relative tabular-nums">
-                                <span v-if="index === currentIndex" class="text-accent animate-pulse">▶</span>
+                                <span v-if="index === currentIndex" class="text-text-primary animate-pulse">▶</span>
                                 <span v-else class="group-hover:hidden text-text-muted">{{ String(index + 1).padStart(2, '0') }}</span>
-                                <button v-if="index !== currentIndex" @click.stop="playFrom(index)" class="hidden group-hover:flex absolute inset-0 items-center justify-center text-accent">
+                                <button v-if="index !== currentIndex" @click.stop="playFrom(index)" class="hidden group-hover:flex absolute inset-0 items-center justify-center text-text-primary">
                                     <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"></path></svg>
                                 </button>
                             </td>
-                            <td class="py-2.5 font-medium text-sm" :class="index === currentIndex ? 'text-accent' : 'text-text-primary'">
+                            <td class="py-2.5 font-medium text-sm" :class="index === currentIndex ? 'text-text-primary' : 'text-text-primary'">
                                 <div class="flex items-center gap-3">
                                     <div class="w-9 h-9 rounded border border-border-light bg-bg-secondary flex items-center justify-center overflow-hidden flex-shrink-0" :style="track.cover_url ? 'background-image: url(' + track.cover_url + '); background-size: cover;' : ''">
                                         <svg v-if="!track.cover_url" class="w-4 h-4 text-text-muted opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path></svg>
@@ -745,6 +1119,16 @@ const QueueView = {
 
         const queue = computed(() => state.queue);
         const currentIndex = computed(() => state.queueIndex);
+        const searchQuery = ref('');
+
+        const filteredQueue = Vue.computed(() => {
+            const q = searchQuery.value.trim().toLowerCase();
+            if (!q) return queue.value;
+            return queue.value.filter(t =>
+                (t.title && t.title.toLowerCase().includes(q)) ||
+                (t.artist_name && t.artist_name.toLowerCase().includes(q))
+            );
+        });
 
         const playFrom = (i) => {
             const t = state.queue[i];
@@ -764,7 +1148,7 @@ const QueueView = {
 
         const clearQueue = () => actions.clearQueue();
 
-        return { queue, currentIndex, playFrom, playAll, removeAt, clearQueue, formatTime, ...tableFns() };
+        return { queue, currentIndex, filteredQueue, searchQuery, playFrom, playAll, removeAt, clearQueue, formatTime, ...tableFns() };
     }
 };
 
@@ -784,6 +1168,10 @@ const PlaylistDetailView = {
                         <span>{{ tracks.length }} 首歌曲</span>
                     </div>
                     <div class="mt-4 flex items-center gap-3">
+                        <div class="relative flex items-center">
+                            <svg class="w-3.5 h-3.5 absolute left-3 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                            <input type="text" placeholder="搜索歌曲..." v-model="searchQuery" class="bg-bg-secondary border border-border-light rounded-md pl-9 pr-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-gray-300 w-48 text-text-secondary placeholder:text-text-muted transition-colors" />
+                        </div>
                         <button @click="playAll" v-if="tracks.length > 0" class="bg-black text-white px-6 py-2.5 rounded-full text-sm font-semibold hover:bg-gray-800 transition active:scale-95 flex items-center gap-2 shadow-md">
                             <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"></path></svg>
                             播放全部
@@ -800,6 +1188,8 @@ const PlaylistDetailView = {
                         <p>歌单还是空的。<br/>在任意歌曲行点击"+"将其添加到本歌单。</p>
                     </div>
                     <div v-else>
+                        <div v-if="filteredTracks.length === 0" class="text-text-muted mt-4">未找到匹配的歌曲。</div>
+                        <div v-else>
                         <table class="w-full text-left border-collapse">
                             <thead>
                                 <tr class="text-xs uppercase tracking-widest text-text-muted border-b border-border-light bg-bg-base sticky top-0 z-10 backdrop-blur-md bg-opacity-90">
@@ -812,12 +1202,12 @@ const PlaylistDetailView = {
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr v-for="(track, index) in tracks" :key="track.id"
+            <tr v-for="(track, index) in filteredTracks" :key="track.id"
                                     class="group hover:bg-gray-50 transition cursor-pointer border-b border-gray-100 last:border-0"
                                     @dblclick="playTrack(track)">
                                     <td class="py-2.5 pl-6 text-center text-text-muted font-mono text-xs relative tabular-nums">
                                         <span class="group-hover:hidden">{{ String(index + 1).padStart(2, '0') }}</span>
-                                        <button @click.stop="playTrack(track)" class="hidden group-hover:flex absolute inset-0 items-center justify-center text-accent">
+                                        <button @click.stop="playTrack(track)" class="hidden group-hover:flex absolute inset-0 items-center justify-center text-text-primary">
                                             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"></path></svg>
                                         </button>
                                     </td>
@@ -849,6 +1239,16 @@ const PlaylistDetailView = {
     setup(props) {
         const loading = ref(true);
         const tracks = ref([]);
+        const searchQuery = ref('');
+
+        const filteredTracks = Vue.computed(() => {
+            const q = searchQuery.value.trim().toLowerCase();
+            if (!q) return tracks.value;
+            return tracks.value.filter(t =>
+                (t.title && t.title.toLowerCase().includes(q)) ||
+                (t.artist_name && t.artist_name.toLowerCase().includes(q))
+            );
+        });
 
         const fetchTracks = async () => {
             loading.value = true;
@@ -870,7 +1270,6 @@ const PlaylistDetailView = {
         };
 
         watch(() => props.playlistId, fetchTracks, { immediate: true });
-        // 歌单项增删（在添加到歌单模态框操作后）后刷新
         watch(() => JSON.stringify(playlistState.playlists), fetchTracks);
 
         const playTrack = (track) => window.PlayerStore.actions.playTrack(track, tracks.value);
@@ -887,12 +1286,13 @@ const PlaylistDetailView = {
             window.AppRouter.navigate('tracks');
         };
 
-        return { loading, tracks, playTrack, playAll, removeItem, removePlaylist, formatTime, ...tableFns() };
+        return { loading, tracks, filteredTracks, searchQuery, playTrack, playAll, removeItem, removePlaylist, formatTime, ...tableFns() };
     }
 };
 
 window.AppViews = {
     TracksView, ArtistsView, ArtistDetailView, AlbumDetailView,
-    FavoritesView, RecentView, QueueView, PlaylistDetailView
+    FavoritesView, RecentView, QueueView, PlaylistDetailView,
+    FavoriteArtistsView, FavoriteAlbumsView
 };
 })();
