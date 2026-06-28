@@ -1,7 +1,7 @@
 {
   "id": "com.loom.music",
   "name": "音乐播放器",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Lumo - 本地优先的跨平台音乐库",
   "author": "Loom Team",
   "icon": "assets/icon.png",
