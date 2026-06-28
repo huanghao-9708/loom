@@ -797,11 +797,13 @@ pub fn run() {
             // 路由：/plugin/ (加载插件静态UI资源)
             // ==========================================
             if let Some(tail) = uri_path.strip_prefix("/plugin/") {
-                if tail.contains("..") {
-                    return tauri::http::Response::builder()
-                        .status(tauri::http::StatusCode::BAD_REQUEST)
-                        .body("Bad Request".into())
-                        .unwrap();
+                for component in std::path::Path::new(tail).components() {
+                    if component == std::path::Component::ParentDir {
+                        return tauri::http::Response::builder()
+                            .status(tauri::http::StatusCode::BAD_REQUEST)
+                            .body("Bad Request".into())
+                            .unwrap();
+                    }
                 }
 
                 let parts: Vec<&str> = tail.splitn(2, '/').collect();

@@ -89,8 +89,10 @@ impl LocalSource {
     fn resolve(&self, path: &str) -> Result<PathBuf, VfsError> {
         let cleaned = path.trim_start_matches('/');
         // 彻底封堵 ../ 路径穿越漏洞
-        if cleaned.contains("..") {
-            return Err(VfsError::Io("Path traversal detected".to_string()));
+        for component in std::path::Path::new(cleaned).components() {
+            if component == std::path::Component::ParentDir {
+                return Err(VfsError::Io("Path traversal detected".to_string()));
+            }
         }
         Ok(self.root_path.join(cleaned))
     }

@@ -415,6 +415,91 @@ const ArtistsView = {
     }
 };
 
+// ===================== 专辑 =====================
+const AlbumsView = {
+    template: `
+        <div class="w-full px-8 pb-8">
+            <div class="py-6 flex items-center justify-between sticky top-0 bg-bg-base z-20">
+                <div>
+                    <h1 class="text-2xl font-bold tracking-tight text-text-primary">专辑</h1>
+                    <p class="text-xs text-text-muted mt-1 font-mono">{{ albums.length }} 张专辑</p>
+                </div>
+                <div class="relative flex items-center">
+                    <svg class="w-3.5 h-3.5 absolute left-3 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    <input type="text" placeholder="搜索专辑..." v-model="searchQuery" class="bg-bg-secondary border border-border-light rounded-md pl-9 pr-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-gray-300 w-48 text-text-secondary placeholder:text-text-muted transition-colors" />
+                </div>
+            </div>
+            <div v-if="loading" class="text-text-muted mt-4">加载专辑中...</div>
+            <div v-else-if="albums.length === 0" class="text-text-muted flex flex-col items-center justify-center h-64 mt-4">
+                <p>未找到专辑。</p>
+            </div>
+            <div v-else-if="filteredAlbums.length === 0" class="text-text-muted flex flex-col items-center justify-center h-64 mt-4">
+                <svg class="w-12 h-12 mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                <p>未找到匹配的专辑。</p>
+            </div>
+            <div v-else class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                <div v-for="album in filteredAlbums" :key="album.id" @click="goToAlbum(album)" class="flex flex-col gap-3 group cursor-pointer">
+                    <div class="aspect-square bg-bg-secondary rounded-lg border border-border-light overflow-hidden shadow-sm group-hover:shadow-md transition relative">
+                        <img v-if="album.cover_url" :src="album.cover_url" class="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+                        <div v-else class="w-full h-full flex items-center justify-center text-text-muted">
+                            <svg class="w-12 h-12 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path></svg>
+                        </div>
+                        <button @click.stop="toggleFavAlbum(album)" class="absolute top-2 right-2 transition opacity-0 group-hover:opacity-100" :class="isFavAlbum(album.id) ? 'opacity-100 text-red-400' : 'text-white drop-shadow-md hover:text-red-400'" :title="isFavAlbum(album.id) ? '取消收藏' : '收藏专辑'">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>
+                        </button>
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="font-medium text-sm text-text-primary truncate">{{ album.title }}</span>
+                        <span class="text-xs text-text-muted mt-0.5">{{ album.artist_name || '未知艺人' }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `,
+    setup() {
+        const loading = ref(true);
+        const albums = ref([]);
+        const searchQuery = ref('');
+
+        const filteredAlbums = Vue.computed(() => {
+            const q = searchQuery.value.trim().toLowerCase();
+            if (!q) return albums.value;
+            return albums.value.filter(a =>
+                (a.title && a.title.toLowerCase().includes(q)) ||
+                (a.artist_name && a.artist_name.toLowerCase().includes(q))
+            );
+        });
+
+        const fetchAlbums = async () => {
+            loading.value = true;
+            try {
+                const rows = await window.loomContext.db.query(`
+                    SELECT
+                        al.id, al.title,
+                        a.name as artist_name,
+                        art.cache_path
+                    FROM albums al
+                    LEFT JOIN artists a ON al.album_artist_id = a.id
+                    LEFT JOIN artwork art ON al.cover_artwork_id = art.id
+                    ORDER BY al.title ASC
+                `);
+                albums.value = rows.map(r => ({ ...r, cover_url: getArtworkUrl(r.cache_path) }));
+            } catch (e) {
+                console.error("Failed to load albums", e);
+            } finally {
+                loading.value = false;
+            }
+        };
+
+        const goToAlbum = (album) => {
+            window.AppRouter.navigate('albumDetail', { id: album.id });
+        };
+
+        onMounted(fetchAlbums);
+        return { loading, albums, filteredAlbums, searchQuery, goToAlbum, ...albumTableFns() };
+    }
+};
+
 // ===================== 收藏艺人 =====================
 const FavoriteArtistsView = {
     template: `
@@ -1291,7 +1376,7 @@ const PlaylistDetailView = {
 };
 
 window.AppViews = {
-    TracksView, ArtistsView, ArtistDetailView, AlbumDetailView,
+    TracksView, ArtistsView, AlbumsView, ArtistDetailView, AlbumDetailView,
     FavoritesView, RecentView, QueueView, PlaylistDetailView,
     FavoriteArtistsView, FavoriteAlbumsView
 };

@@ -1,6 +1,9 @@
 const artistCache = new Map();
 const albumCache = new Map();
 const genreCache = new Map();
+const artistLocks = new Map();
+const albumLocks = new Map();
+const genreLocks = new Map();
 let existingFilesSet = null; // Actually a Map now
 
 window.prepareScannerCache = async function(sourceId) {
@@ -91,17 +94,30 @@ async function getOrInsertArtist(name) {
     const normalized = name.toLowerCase().trim();
     if (artistCache.has(normalized)) return artistCache.get(normalized);
     
-    // Check if exists
-    const existing = await window.loomContext.db.query("SELECT id FROM artists WHERE normalized_name = ?", [normalized]);
-    if (existing && existing.length > 0) {
-        artistCache.set(normalized, existing[0].id);
-        return existing[0].id;
+    if (artistLocks.has(normalized)) {
+        return await artistLocks.get(normalized);
     }
     
-    // Insert
-    const res = await window.loomContext.db.execute("INSERT INTO artists (name, normalized_name, kind) VALUES (?, ?, 'person')", [name, normalized]);
-    artistCache.set(normalized, res.lastInsertId);
-    return res.lastInsertId;
+    const promise = (async () => {
+        // Check if exists
+        const existing = await window.loomContext.db.query("SELECT id FROM artists WHERE normalized_name = ?", [normalized]);
+        if (existing && existing.length > 0) {
+            artistCache.set(normalized, existing[0].id);
+            return existing[0].id;
+        }
+        
+        // Insert
+        const res = await window.loomContext.db.execute("INSERT INTO artists (name, normalized_name, kind) VALUES (?, ?, 'person')", [name, normalized]);
+        artistCache.set(normalized, res.lastInsertId);
+        return res.lastInsertId;
+    })();
+    
+    artistLocks.set(normalized, promise);
+    try {
+        return await promise;
+    } finally {
+        artistLocks.delete(normalized);
+    }
 }
 
 async function getOrInsertAlbum(title, artistId, coverArtworkId) {
@@ -110,18 +126,31 @@ async function getOrInsertAlbum(title, artistId, coverArtworkId) {
     const cacheKey = `${normalized}-${artistId}`;
     if (albumCache.has(cacheKey)) return albumCache.get(cacheKey);
     
-    const existing = await window.loomContext.db.query("SELECT id FROM albums WHERE normalized_title = ? AND album_artist_id = ?", [normalized, artistId]);
-    if (existing && existing.length > 0) {
-        albumCache.set(cacheKey, existing[0].id);
-        return existing[0].id;
+    if (albumLocks.has(cacheKey)) {
+        return await albumLocks.get(cacheKey);
     }
     
-    const res = await window.loomContext.db.execute(
-        "INSERT INTO albums (title, normalized_title, album_artist_id, cover_artwork_id) VALUES (?, ?, ?, ?)", 
-        [title, normalized, artistId, coverArtworkId]
-    );
-    albumCache.set(cacheKey, res.lastInsertId);
-    return res.lastInsertId;
+    const promise = (async () => {
+        const existing = await window.loomContext.db.query("SELECT id FROM albums WHERE normalized_title = ? AND album_artist_id = ?", [normalized, artistId]);
+        if (existing && existing.length > 0) {
+            albumCache.set(cacheKey, existing[0].id);
+            return existing[0].id;
+        }
+        
+        const res = await window.loomContext.db.execute(
+            "INSERT INTO albums (title, normalized_title, album_artist_id, cover_artwork_id) VALUES (?, ?, ?, ?)", 
+            [title, normalized, artistId, coverArtworkId]
+        );
+        albumCache.set(cacheKey, res.lastInsertId);
+        return res.lastInsertId;
+    })();
+    
+    albumLocks.set(cacheKey, promise);
+    try {
+        return await promise;
+    } finally {
+        albumLocks.delete(cacheKey);
+    }
 }
 
 async function getOrInsertGenre(name) {
@@ -129,15 +158,28 @@ async function getOrInsertGenre(name) {
     const normalized = name.toLowerCase().trim();
     if (genreCache.has(normalized)) return genreCache.get(normalized);
     
-    const existing = await window.loomContext.db.query("SELECT id FROM genres WHERE normalized_name = ?", [normalized]);
-    if (existing && existing.length > 0) {
-        genreCache.set(normalized, existing[0].id);
-        return existing[0].id;
+    if (genreLocks.has(normalized)) {
+        return await genreLocks.get(normalized);
     }
     
-    const res = await window.loomContext.db.execute("INSERT INTO genres (name, normalized_name) VALUES (?, ?)", [name, normalized]);
-    genreCache.set(normalized, res.lastInsertId);
-    return res.lastInsertId;
+    const promise = (async () => {
+        const existing = await window.loomContext.db.query("SELECT id FROM genres WHERE normalized_name = ?", [normalized]);
+        if (existing && existing.length > 0) {
+            genreCache.set(normalized, existing[0].id);
+            return existing[0].id;
+        }
+        
+        const res = await window.loomContext.db.execute("INSERT INTO genres (name, normalized_name) VALUES (?, ?)", [name, normalized]);
+        genreCache.set(normalized, res.lastInsertId);
+        return res.lastInsertId;
+    })();
+    
+    genreLocks.set(normalized, promise);
+    try {
+        return await promise;
+    } finally {
+        genreLocks.delete(normalized);
+    }
 }
 
 async function processFile(sourceId, file, directoryFiles) {
@@ -184,7 +226,7 @@ async function processFile(sourceId, file, directoryFiles) {
         if (tags.album) albumName = tags.album;
         if (tags.genre) genreName = tags.genre;
         if (tags.year) year = parseInt(tags.year) || null;
-        if (tags.track) trackNo = parseInt(tags.track.split('/')[0]) || null;
+        if (tags.track) trackNo = parseInt(String(tags.track).split('/')[0]) || null;
 
         // Process Artwork
         if (tags.picture && tags.picture.data) {
@@ -304,15 +346,26 @@ async function processFile(sourceId, file, directoryFiles) {
 window.scanDirectory = async function scanDirectory(sourceId, path, onProgress) {
     try {
         const files = await window.loomContext.vfs.list(sourceId, path);
+        const queue = [];
+        
         for (let i = 0; i < files.length; i++) {
             const f = files[i];
             if (f.is_dir) {
                 // Recursively scan subdirectories
                 await scanDirectory(sourceId, f.vpath, onProgress);
             } else {
+                queue.push(f);
+            }
+        }
+        
+        // Process files concurrently with a limit of 10
+        const concurrency = 10;
+        for (let i = 0; i < queue.length; i += concurrency) {
+            const chunk = queue.slice(i, i + concurrency);
+            await Promise.all(chunk.map(async f => {
                 if (onProgress) onProgress(`Parsing ${f.name}...`);
                 await processFile(sourceId, f, files);
-            }
+            }));
         }
     } catch (e) {
         console.error(`[Scanner] Error scanning directory ${path}:`, e);
